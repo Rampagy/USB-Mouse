@@ -64,3 +64,9 @@ $ arm-none-eabi-gdb binary/FreeRTOS.elf
 ```
 
 You'll get breakpoint triggered at `main` function, and enjoy!
+
+
+## References
+
+https://media.digikey.com/pdf/Data%20Sheets/ST%20Microelectronics%20PDFS/LIS3DSH.pdf
+
