@@ -3,19 +3,16 @@
 #include "task.h"
 #include "stdio.h"
 #include "stm32f4xx_usart.h"
-#include "blink_led.h"
+#include "accelerometer.h"
 
 // Macro to use CCM (Core Coupled Memory) in STM32F4
 #define CCM_RAM __attribute__((section(".ccmram")))
 
 #define FPU_TASK_STACK_SIZE (configMINIMAL_STACK_SIZE*10)
 
-//StackType_t fpuTaskStack[FPU_TASK_STACK_SIZE] CCM_RAM;  // Put task stack in CCM
-//StaticTask_t fpuTaskBuffer CCM_RAM;  // Put TCB in CCM
 TaskHandle_t xFPU = NULL;
 
-void init_USART3(void);
-void init_user_LED(void);
+void init_peripherals(void);
 
 void test_FPU_test(void* p);
 
@@ -23,20 +20,15 @@ int main(void) {
   /* Update the MCU and peripheral clock frequencies */
   SystemCoreClockUpdate();
   NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
-  init_USART3();
-  init_user_LED();
-
-  
+  init_peripherals();
 
   // Create a task
   // Stack and TCB are placed in CCM of STM32F4
   // The CCM block is connected directly to the core, which leads to zero wait states
-  //xTaskCreateStatic(test_FPU_test, "FPU", FPU_TASK_STACK_SIZE, NULL, 1, fpuTaskStack, &fpuTaskBuffer);
   /* Spawn the tasks. */
   /*           Task,                  Task Name,          Stack Size,                             parameters,     priority,                           task handle */
   xTaskCreate(test_FPU_test,          "FPU",              FPU_TASK_STACK_SIZE,                    NULL,           1,                                  &xFPU);
 
-  printf("System Started!\n");
   vTaskStartScheduler();  // should never return
 
   for (;;);
@@ -117,29 +109,14 @@ void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuffer, StackT
 void test_FPU_test(void* p) {
   (void)p;
   TickType_t xLastWakeTime;
-  const TickType_t xFrequency = 100;
+  const TickType_t xFrequency = 1000;
 
   /* Initialize the xLastWakeTime variable with the current time. */
   xLastWakeTime = xTaskGetTickCount();
 
-  float angle = 0.0f;
+  while (1)
+  {
 
-  printf("Start FPU/DSP test task.\n");
-  while (1) {
-    if (blink(angle) == 1)
-    {
-      GPIO_SetBits(GPIOD, GPIO_Pin_12);
-    }
-    else
-    {
-      GPIO_ResetBits(GPIOD, GPIO_Pin_12);
-    }
-
-    angle += 1.0f;
-    if (angle > 6.28318530718f)
-    {
-      angle -= 6.28318530718f;
-    }
 
     /* Wait for the next cycle. */
     vTaskDelayUntil( &xLastWakeTime, xFrequency );
@@ -148,46 +125,17 @@ void test_FPU_test(void* p) {
   vTaskDelete(NULL);
 }
 
-/*
- * Configure USART3(PB10, PB11) to redirect printf data to host PC.
- */
-void init_USART3(void) {
-  GPIO_InitTypeDef GPIO_InitStruct;
-  USART_InitTypeDef USART_InitStruct;
 
-  RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3, ENABLE);
-  RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
-
-  GPIO_InitStruct.GPIO_Pin = GPIO_Pin_10 | GPIO_Pin_11;
-  GPIO_InitStruct.GPIO_Mode = GPIO_Mode_AF;
-  GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_InitStruct.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStruct.GPIO_PuPd = GPIO_PuPd_UP;
-  GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  GPIO_PinAFConfig(GPIOB, GPIO_PinSource10, GPIO_AF_USART3);
-  GPIO_PinAFConfig(GPIOB, GPIO_PinSource11, GPIO_AF_USART3);
-
-  USART_InitStruct.USART_BaudRate = 115200;
-  USART_InitStruct.USART_WordLength = USART_WordLength_8b;
-  USART_InitStruct.USART_StopBits = USART_StopBits_1;
-  USART_InitStruct.USART_Parity = USART_Parity_No;
-  USART_InitStruct.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
-  USART_InitStruct.USART_Mode = USART_Mode_Tx | USART_Mode_Rx;
-  USART_Init(USART3, &USART_InitStruct);
-  USART_Cmd(USART3, ENABLE);
-}
-
-
-void init_user_LED(void)
+void init_peripherals(void)
 {
+  /* Initialize the LEDs*/
   GPIO_InitTypeDef  GPIO_InitStructure;
   
   /* Enable the GPIO_LED Clock */
   RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
 
   /* Configure the GPIO_LED pin */
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12;
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15; /* GREEN, ORANGE, RED, BLUE */
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
   GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
   GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;

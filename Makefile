@@ -66,7 +66,7 @@ vpath %.s $(STARTUP)
 ASRC=startup_stm32f4xx.s
 
 # Application Files
-SRC+=blink_led.c
+SRC+=accelerometer.c
 
 # Project Source Files
 SRC+=stm32f4xx_it.c

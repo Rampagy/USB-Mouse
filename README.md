@@ -1,6 +1,6 @@
-# STM32F4-FreeRTOS
+# USB-Mouse
 
-A demo project of FreeRTOS running on a STM32F4 Discovery board.
+A project that uses the accelerometer on the stm32f4 discovery board to act as a mouse.  The way you tip the board controls the direction of the mouse.
 
 ## Steps to run this example
 
