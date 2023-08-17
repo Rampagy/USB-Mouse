@@ -234,4 +234,6 @@ clean_linux:
 
 .PHONY: flash
 flash:
-	@STM32_Programmer_CLI.exe -c port=$(PORT) -w $(BIN_DIR)/$(TARGET).bin 0x8000000
+  # Connect, write and then start the program
+	@STM32_Programmer_CLI.exe -c port=$(PORT) -w $(BIN_DIR)/$(TARGET).bin 0x8000000 -s 0x0
+

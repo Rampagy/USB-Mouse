@@ -128,9 +128,10 @@ void test_FPU_test(void* p) {
 
 void init_peripherals(void)
 {
-  /* Initialize the LEDs */
-  GPIO_InitTypeDef  GPIO_InitStructure;
-  SPI_InitTypeDef  SPI_InitStructure;
+  GPIO_InitTypeDef GPIO_InitStructure;
+  SPI_InitTypeDef SPI_InitStructure;
+  TIM_TimeBaseInitTypeDef TIM_InitStructure;
+  TIM_OCInitTypeDef TIM_OCInitStructure;
   
   /* Enable the GPIO_LED Clock */
   RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE); // 168 MHz
@@ -138,13 +139,47 @@ void init_peripherals(void)
   /* Enable the SPI1 Clock */
   RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1, ENABLE); // 84 MHz
 
-  /* Configure the GPIO_LED pin */
+  /* Enable the TIM4 clock */
+  RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE); // 42 MHz? or 84 MHz?
+
+  /* Configure the LED pins */
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15; /* GREEN, ORANGE, RED, BLUE */
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
   GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
   GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
   GPIO_Init(GPIOD, &GPIO_InitStructure);
+
+  /* Connect TIM4 pins to AF (alternate function) */
+  GPIO_PinAFConfig(GPIOD, GPIO_PinSource12, GPIO_AF_TIM4);
+  GPIO_PinAFConfig(GPIOD, GPIO_PinSource13, GPIO_AF_TIM4);
+  GPIO_PinAFConfig(GPIOD, GPIO_PinSource14, GPIO_AF_TIM4);
+  GPIO_PinAFConfig(GPIOD, GPIO_PinSource15, GPIO_AF_TIM4);
+
+  /* Initialize TIM4 for use with the LEDs */
+  TIM_InitStructure.TIM_Period = 10499; /* 10ms period */
+  TIM_InitStructure.TIM_Prescaler = 9; /* Implicit +1 makes 10 */
+  TIM_InitStructure.TIM_ClockDivision = TIM_CKD_DIV4;
+  TIM_InitStructure.TIM_CounterMode = TIM_CounterMode_Up;
+  TIM_InitStructure.TIM_RepetitionCounter = 0; /* not used */
+  TIM_TimeBaseInit(TIM4, &TIM_InitStructure);
+
+  /* Initialize the output compare module for use with TIM4 */
+  TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;
+  TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
+  TIM_OCInitStructure.TIM_Pulse = 1000;
+  TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
+  TIM_OC1Init(TIM4, &TIM_OCInitStructure);  /* Green */
+  TIM_OC2Init(TIM4, &TIM_OCInitStructure);  /* Orange */
+  TIM_OC3Init(TIM4, &TIM_OCInitStructure);  /* Red */
+  TIM_OC4Init(TIM4, &TIM_OCInitStructure);  /* Blue */
+  TIM_OC1PreloadConfig(TIM4, TIM_OCPreload_Enable);
+  TIM_OC2PreloadConfig(TIM4, TIM_OCPreload_Enable);
+  TIM_OC3PreloadConfig(TIM4, TIM_OCPreload_Enable);
+  TIM_OC4PreloadConfig(TIM4, TIM_OCPreload_Enable);
+
+  /* Start TIM4 */
+  TIM_Cmd(TIM4, ENABLE);
 
   /* Initialize SPI module */
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_6 | GPIO_Pin_7; /* SCLK, MISO, MOSI */
@@ -160,7 +195,7 @@ void init_peripherals(void)
   GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
   GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_Init(GPIOA, &GPIO_InitStructure);
+  GPIO_Init(GPIOE, &GPIO_InitStructure);
 
   /* Initialize SPI module */
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1 | GPIO_Pin_2; /* INT2, INT1 */
@@ -168,7 +203,7 @@ void init_peripherals(void)
   GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
   GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_Init(GPIOA, &GPIO_InitStructure);
+  GPIO_Init(GPIOE, &GPIO_InitStructure);
 
   /* Initialize SPI module */
   SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
@@ -176,9 +211,11 @@ void init_peripherals(void)
   SPI_InitStructure.SPI_DataSize = SPI_DataSize_16b;
   SPI_InitStructure.SPI_CPOL = SPI_CPOL_High;
   SPI_InitStructure.SPI_CPHA = SPI_CPHA_2Edge;
-  SPI_InitStructure.SPI_NSS = SPI_NSS_Soft; // software management of slave select (chip select)
-  SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_16; // 84 MHz / 16 = 5.25 MHz
+  SPI_InitStructure.SPI_NSS = SPI_NSS_Soft; /* software management of slave select (chip select) */
+  SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_16; /* 84 MHz / 16 = 5.25 MHz */
   SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
-  SPI_InitStructure.SPI_CRCPolynomial = 0; // ??? need to check
+  SPI_InitStructure.SPI_CRCPolynomial = 0; /* ??? need to check */
   SPI_Init(SPI1, &SPI_InitStructure);
+
+  //SPI_Cmd(SPI1, ENABLE);
 }
