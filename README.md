@@ -68,6 +68,6 @@ You'll get breakpoint triggered at `main` function, and enjoy!
 
 ## References
 
-https://media.digikey.com/pdf/Data%20Sheets/ST%20Microelectronics%20PDFS/LIS3DSH.pdf
+https://www.mouser.com/datasheet/2/389/lis3dsh-954955.pdf
 
 https://stm32f4-discovery.net/2014/04/library-05-spi-for-stm32f4xx/

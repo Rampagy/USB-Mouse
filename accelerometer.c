@@ -5,7 +5,18 @@ static uint8_t SPI1_SendByte(uint8_t byte);
 void SPI1_Write(uint8_t* pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite);
 void SPI1_Read(uint8_t* pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead);
 
+void ReadAcceleration(acceleration_t* accel)
+{
+  accel_data reg;
 
+  /* Read 6 bytes: x acceleration, y acceleration, and z acceleration. */
+  SPI1_Read(&reg.u8[0], OUT_X_ACCEL, MULTIBYTE_ACCEL_READ_LEN);
+
+  /* Parse the results into floats with units of g */
+  accel->x = 2.0f*((float)reg.u8[0]-99.0f) / 99.0f;
+  accel->y = 2.0f*((float)reg.u8[2]-67.0f) / 67.0f;
+  accel->z = 2.0f*((float)reg.u8[4]-99.0f) / 99.0f;
+}
 
 uint8_t InitAccelerometer(void)
 {

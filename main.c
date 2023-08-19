@@ -117,6 +117,35 @@ void test_FPU_test(void* p) {
   while (1)
   {
 
+    acceleration_t accels;
+    ReadAcceleration(&accels);
+
+    /* Set LED brightness based on acceleration. */
+    if (accels.x >= 0)
+    {
+      /* Turn green on proportional to the accel, turn red off */
+      TIM_SetCompare1(TIM4, (uint32_t)((accels.x / 2.0f) * 10500.0f));
+      TIM_SetCompare3(TIM4, 0);
+    }
+    else
+    {
+      /* Turn red on proportional to the accel, turn green off */
+      TIM_SetCompare3(TIM4, (uint32_t)((accels.x / -2.0f) * 10500.0f));
+      TIM_SetCompare1(TIM4, 0);
+    }
+
+    if (accels.y >= 0)
+    {
+      /* Turn green on proportional to the accel, turn red off */
+      TIM_SetCompare2(TIM4, (uint32_t)((accels.y / 2.0f) * 10500.0f));
+      TIM_SetCompare4(TIM4, 0);
+    }
+    else
+    {
+      /* Turn red on proportional to the accel, turn green off */
+      TIM_SetCompare4(TIM4, (uint32_t)((accels.y / -2.0f) * 10500.0f));
+      TIM_SetCompare2(TIM4, 0);
+    }
 
     /* Wait for the next cycle. */
     vTaskDelayUntil( &xLastWakeTime, xFrequency );
@@ -238,4 +267,5 @@ void init_peripherals(void)
     /* For verification purposes turn green LED off if accelerometer is not initialized. */
     TIM_SetCompare1(TIM4, 0);
   }
+
 }
