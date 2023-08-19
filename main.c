@@ -1,8 +1,6 @@
 #include "stm32f4xx.h"
 #include "FreeRTOS.h"
 #include "task.h"
-#include "stdio.h"
-#include "stm32f4xx_spi.h"
 #include "accelerometer.h"
 
 // Macro to use CCM (Core Coupled Memory) in STM32F4
@@ -10,7 +8,8 @@
 
 #define FPU_TASK_STACK_SIZE (configMINIMAL_STACK_SIZE*10)
 
-TaskHandle_t xFPU = NULL;
+StackType_t fpuTaskStack[FPU_TASK_STACK_SIZE] CCM_RAM;  // Put task stack in CCM
+StaticTask_t fpuTaskBuffer CCM_RAM;  // Put TCB in CCM
 
 void init_peripherals(void);
 
@@ -27,7 +26,8 @@ int main(void) {
   // The CCM block is connected directly to the core, which leads to zero wait states
   /* Spawn the tasks. */
   /*           Task,                  Task Name,          Stack Size,                             parameters,     priority,                           task handle */
-  xTaskCreate(test_FPU_test,          "FPU",              FPU_TASK_STACK_SIZE,                    NULL,           1,                                  &xFPU);
+  xTaskCreateStatic(test_FPU_test, "FPU", FPU_TASK_STACK_SIZE, NULL, 1, fpuTaskStack, &fpuTaskBuffer);
+  //xTaskCreate(test_FPU_test,          "FPU",              FPU_TASK_STACK_SIZE,                    NULL,           1,                                  &xFPU);
 
   vTaskStartScheduler();  // should never return
 
@@ -133,14 +133,18 @@ void init_peripherals(void)
   TIM_TimeBaseInitTypeDef TIM_InitStructure;
   TIM_OCInitTypeDef TIM_OCInitStructure;
   
-  /* Enable the GPIO_LED Clock */
-  RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE); // 168 MHz
+  /* Enable the GPIOD Clock */
+  RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA | RCC_AHB1Periph_GPIOD | RCC_AHB1Periph_GPIOE, ENABLE); // 168 MHz
 
   /* Enable the SPI1 Clock */
   RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1, ENABLE); // 84 MHz
 
   /* Enable the TIM4 clock */
   RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE); // 42 MHz? or 84 MHz?
+
+  GPIO_DeInit(GPIOA);
+  GPIO_DeInit(GPIOD);
+  GPIO_DeInit(GPIOE);
 
   /* Configure the LED pins */
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15; /* GREEN, ORANGE, RED, BLUE */
@@ -181,7 +185,7 @@ void init_peripherals(void)
   /* Start TIM4 */
   TIM_Cmd(TIM4, ENABLE);
 
-  /* Initialize SPI module */
+  /* Initialize SCLK, MISO, MOSI module */
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_6 | GPIO_Pin_7; /* SCLK, MISO, MOSI */
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
   GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
@@ -189,33 +193,45 @@ void init_peripherals(void)
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
   GPIO_Init(GPIOA, &GPIO_InitStructure);
 
+  /* Connect SPI pins to AF (alternate function) */
+  GPIO_PinAFConfig(GPIOA, GPIO_PinSource5, GPIO_AF_SPI1);
+  GPIO_PinAFConfig(GPIOA, GPIO_PinSource6, GPIO_AF_SPI1);
+  GPIO_PinAFConfig(GPIOA, GPIO_PinSource7, GPIO_AF_SPI1);
+
   /* Initialize SPI module */
+  SPI_I2S_DeInit(SPI1);
+  SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
+  SPI_InitStructure.SPI_Mode = SPI_Mode_Master;
+  SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;
+  SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;
+  SPI_InitStructure.SPI_CPHA = SPI_CPHA_1Edge;
+  SPI_InitStructure.SPI_NSS = SPI_NSS_Soft; /* software management of slave select (chip select) */
+  SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_16; /* 84 MHz / 16 = 5.25 MHz */
+  SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
+  SPI_InitStructure.SPI_CRCPolynomial = 7;
+  SPI_Init(SPI1, &SPI_InitStructure);
+
+  /* Initialize CS (chip select) module */
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3; /* CS (chip select) */
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
   GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
   GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
   GPIO_Init(GPIOE, &GPIO_InitStructure);
+  GPIO_SetBits(GPIOE, GPIO_Pin_3);
 
-  /* Initialize SPI module */
+  /* Initialize SPI interrupt pins module */
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1 | GPIO_Pin_2; /* INT2, INT1 */
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
   GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;
+  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
   GPIO_Init(GPIOE, &GPIO_InitStructure);
 
-  /* Initialize SPI module */
-  SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
-  SPI_InitStructure.SPI_Mode = SPI_Mode_Master;
-  SPI_InitStructure.SPI_DataSize = SPI_DataSize_16b;
-  SPI_InitStructure.SPI_CPOL = SPI_CPOL_High;
-  SPI_InitStructure.SPI_CPHA = SPI_CPHA_2Edge;
-  SPI_InitStructure.SPI_NSS = SPI_NSS_Soft; /* software management of slave select (chip select) */
-  SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_16; /* 84 MHz / 16 = 5.25 MHz */
-  SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
-  SPI_InitStructure.SPI_CRCPolynomial = 0; /* ??? need to check */
-  SPI_Init(SPI1, &SPI_InitStructure);
+  /* TODO: Initialize SPI interrupt */
+  //SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE | SPI_I2S_IT_RXNE, ENABLE);
 
-  //SPI_Cmd(SPI1, ENABLE);
+  SPI_Cmd(SPI1, ENABLE);
+
+  (void)SendSPIMessage();
 }
