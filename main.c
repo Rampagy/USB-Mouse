@@ -116,7 +116,7 @@ void test_FPU_test(void* p) {
 
   while (1)
   {
-
+    /* TODO: Why are the accelerations not changing? */
     acceleration_t accels;
     ReadAcceleration(&accels);
 
@@ -146,6 +146,13 @@ void test_FPU_test(void* p) {
       TIM_SetCompare4(TIM4, (uint32_t)((accels.y / -2.0f) * 10500.0f));
       TIM_SetCompare2(TIM4, 0);
     }
+
+    /* Read status reg to clear the flags? */
+    uint8_t tempreg = 0;
+    //ReadStatusReg(&tempreg);
+
+    /* Read interrupt flags to clear the flags? */
+    ReadOutsReg(&tempreg);
 
     /* Wait for the next cycle. */
     vTaskDelayUntil( &xLastWakeTime, xFrequency );
@@ -264,8 +271,9 @@ void init_peripherals(void)
 
   if ( !InitAccelerometer() )
   {
-    /* For verification purposes turn green LED off if accelerometer is not initialized. */
-    TIM_SetCompare1(TIM4, 0);
+    /* For verification purposes turn green LED on if accelerometer is not initialized. */
+    TIM_SetCompare1(TIM4, 10500);
+    for (volatile uint32_t i = 0; i < 10000000; ++i);
   }
 
 }

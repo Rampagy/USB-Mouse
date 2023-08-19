@@ -5,6 +5,31 @@ static uint8_t SPI1_SendByte(uint8_t byte);
 void SPI1_Write(uint8_t* pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite);
 void SPI1_Read(uint8_t* pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead);
 
+
+void ReadOutsReg(uint8_t* status)
+{
+  SPI1_Read(&(*status), OUTS1_ADDR, 1);
+}
+
+
+void ReadStatusReg(uint8_t* status)
+{
+  SPI1_Read(&(*status), STATUS_ADDR, 1);
+}
+
+
+void ReadStatReg(uint8_t* status)
+{
+  SPI1_Read(&(*status), STAT_ADDR, 1);
+}
+
+
+void ReadTemperature(uint8_t* temp)
+{
+  SPI1_Read(&(*temp), TEMPERATURE_ADDR, 1);
+}
+
+
 void ReadAcceleration(acceleration_t* accel)
 {
   accel_data reg;
@@ -23,8 +48,19 @@ uint8_t InitAccelerometer(void)
   /* Set ctrl reg 4 to 400Hz, regs not updated until MSB/LSB are read 
    *   Z-axis enabled, Y-axis enabled, and X-axis enabled
    */
-  uint8_t tmpreg = 0x7F;
+  uint8_t tmpreg = 0x97;
   SPI1_Write(&tmpreg, CTRL_REG4, 1);
+
+  /* Enable the FIFO buffer and auto address incrementing */
+  tmpreg = 0x50;
+  SPI1_Write(&tmpreg, CTRL_REG6, 1);
+
+  /* Set to bypass mode */
+  tmpreg = 0x00;
+  SPI1_Write(&tmpreg, FIFO_CTRL, 1);
+
+  /* Read interrupt flags */
+  SPI1_Read(&tmpreg, OUTS1_ADDR, 1);
 
   /* Read the WHO_AM_I reg to verify functionality */
   uint8_t who_am_i = 0;
