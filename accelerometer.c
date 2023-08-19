@@ -1,34 +1,100 @@
 #include "accelerometer.h"
 
-uint8_t SendSPIMessage(void)
+
+static uint8_t SPI1_SendByte(uint8_t byte);
+void SPI1_Write(uint8_t* pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite);
+void SPI1_Read(uint8_t* pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead);
+
+
+
+uint8_t InitAccelerometer(void)
 {
-  for (volatile uint32_t i = 0; i < 3000000; i++);
-  GPIO_ResetBits(GPIOE, GPIO_Pin_3);
-  //if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_3) == SET) TIM_SetCompare1(TIM4, 0);
+  /* Set ctrl reg 4 to 400Hz, regs not updated until MSB/LSB are read 
+   *   Z-axis enabled, Y-axis enabled, and X-axis enabled
+   */
+  uint8_t tmpreg = 0x7F;
+  SPI1_Write(&tmpreg, CTRL_REG4, 1);
 
-  /* Wait until Tx buffer is empty */
-  while( SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_TXE) == RESET );
+  /* Read the WHO_AM_I reg to verify functionality */
+  uint8_t who_am_i = 0;
+  SPI1_Read(&who_am_i, WHO_AM_I_ADDR, 1);
 
-  /* Send data */
-  SPI_I2S_SendData(SPI1, 0x8F);
-
-  /* Wait until the RX buffer is not empty */
-  while( SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_RXNE) == RESET );
+  return (who_am_i == 0x3F);
+}
 
 
-
-  uint16_t data = SPI_I2S_ReceiveData(SPI1);
-
-  GPIO_SetBits(GPIOE, GPIO_Pin_3);
-  
-  if (((uint8_t)data) == 0xFF) // == 0x3F)
+void SPI1_Write(uint8_t* pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite)
+{
+  /* Configure the MS bit: 
+     - When 0, the address will remain unchanged in multiple read/write commands.
+     - When 1, the address will be auto incremented in multiple read/write commands.
+  */
+  if(NumByteToWrite > 0x01)
   {
-    TIM_SetCompare2(TIM4, 10498);
+    WriteAddr |= (uint8_t)LIS3DSH_MULTI_BYTE;
+  }
+
+  /* Set chip select Low at the start of the transmission */
+  GPIO_ResetBits(GPIOE, GPIO_Pin_3);
+  
+  /* Send the Address of the indexed register */
+  (void)SPI1_SendByte(WriteAddr);
+
+  /* Send the data that will be written into the device (MSB First) */
+  while (NumByteToWrite > 0x00)
+  {
+    (void)SPI1_SendByte(*pBuffer);
+    NumByteToWrite--;
+    pBuffer++;
+  }
+  
+  /* Set chip select High at the end of the transmission */ 
+  GPIO_SetBits(GPIOE, GPIO_Pin_3);
+}
+
+
+void SPI1_Read(uint8_t* pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead)
+{  
+  if(NumByteToRead > 0x01)
+  {
+    ReadAddr |= (uint8_t)(LIS3DSH_READ_BIT | LIS3DSH_MULTI_BYTE);
   }
   else
   {
-    TIM_SetCompare2(TIM4, 0);
+    ReadAddr |= (uint8_t)LIS3DSH_READ_BIT;
   }
 
-  return 1;
+  /* Set chip select Low at the start of the transmission */
+  GPIO_ResetBits(GPIOE, GPIO_Pin_3);
+  
+  /* Send the Address of the indexed register */
+  (void)SPI1_SendByte(ReadAddr);
+  
+  /* Receive the data that will be read from the device (MSB First) */
+  while(NumByteToRead > 0x00)
+  {
+    /* Send dummy byte (0x00) to generate the SPI clock to LIS302DL (Slave device) */
+    *pBuffer = SPI1_SendByte(0x00);
+    NumByteToRead--;
+    pBuffer++;
+  }
+
+  /* Set chip select High at the end of the transmission */ 
+  GPIO_SetBits(GPIOE, GPIO_Pin_3);
+}
+
+
+static uint8_t SPI1_SendByte(uint8_t byte)
+{
+  /* Loop while DR register in not empty */
+  while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_TXE) == RESET);
+
+  /* Send a Byte through the SPI peripheral */
+  SPI_I2S_SendData(SPI1, byte);
+
+  /* Wait to receive a Byte */
+  while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_RXNE) == RESET);
+
+  /* Return the Byte read from the SPI bus */
+  return (uint8_t)SPI_I2S_ReceiveData(SPI1);
 }

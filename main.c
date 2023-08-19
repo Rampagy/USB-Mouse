@@ -233,5 +233,9 @@ void init_peripherals(void)
 
   SPI_Cmd(SPI1, ENABLE);
 
-  (void)SendSPIMessage();
+  if ( !InitAccelerometer() )
+  {
+    /* For verification purposes turn green LED off if accelerometer is not initialized. */
+    TIM_SetCompare1(TIM4, 0);
+  }
 }
