@@ -39,6 +39,7 @@ typedef union {
   int16_t s16[MULTIBYTE_ACCEL_READ_LEN >> 1];
   uint16_t u16[MULTIBYTE_ACCEL_READ_LEN >> 1];
   uint8_t u8[MULTIBYTE_ACCEL_READ_LEN];
+  int8_t s8[MULTIBYTE_ACCEL_READ_LEN];
 } accel_data;
 
 

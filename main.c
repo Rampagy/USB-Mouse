@@ -129,29 +129,29 @@ void test_FPU_test(void* p) {
     ReadAcceleration(&accels);
 
     /* Set LED brightness based on acceleration. */
-    if (accels.x >= 0)
+    if (accels.x > 20)
     {
       /* Turn green on proportional to the accel, turn red off */
-      TIM_SetCompare1(TIM4, (uint32_t)(accels.x * 10500.0f));
+      TIM_SetCompare1(TIM4, (uint32_t)(accels.x * 41.0f));
       TIM_SetCompare3(TIM4, 0);
     }
-    else
+    else if (accels.x < -20)
     {
       /* Turn red on proportional to the accel, turn green off */
-      TIM_SetCompare3(TIM4, (uint32_t)(-accels.x * 10500.0f));
+      TIM_SetCompare3(TIM4, (uint32_t)(-accels.x * 41.0f));
       TIM_SetCompare1(TIM4, 0);
     }
 
-    if (accels.y >= 0)
+    if (accels.y > 20)
     {
       /* Turn orange on proportional to the accel, turn blue off */
-      TIM_SetCompare2(TIM4, (uint32_t)(accels.y * 10500.0f));
+      TIM_SetCompare2(TIM4, (uint32_t)(accels.y * 41.0f));
       TIM_SetCompare4(TIM4, 0);
     }
-    else
+    else if (accels.y < -20)
     {
       /* Turn blue on proportional to the accel, turn orange off */
-      TIM_SetCompare4(TIM4, (uint32_t)(-accels.y * 10500.0f));
+      TIM_SetCompare4(TIM4, (uint32_t)(-accels.y * 41.0f));
       TIM_SetCompare2(TIM4, 0);
     }
 
@@ -247,10 +247,10 @@ void init_peripherals(void)
   SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
   SPI_InitStructure.SPI_Mode = SPI_Mode_Master;
   SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;
-  SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;
-  SPI_InitStructure.SPI_CPHA = SPI_CPHA_1Edge;
-  SPI_InitStructure.SPI_NSS = SPI_NSS_Soft; /* software management of slave select (chip select) */
-  SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_16; /* 84 MHz / 16 = 5.25 MHz */
+  SPI_InitStructure.SPI_CPOL = SPI_CPOL_High;
+  SPI_InitStructure.SPI_CPHA = SPI_CPHA_2Edge;
+  SPI_InitStructure.SPI_NSS = SPI_NSS_Soft | SPI_NSSInternalSoft_Set; /* software management of slave select (chip select) */
+  SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4; /* 84 MHz / 16 = 5.25 MHz */
   SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
   SPI_InitStructure.SPI_CRCPolynomial = 7;
   SPI_Init(SPI1, &SPI_InitStructure);
@@ -262,7 +262,10 @@ void init_peripherals(void)
   GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
   GPIO_Init(GPIOE, &GPIO_InitStructure);
+  
+  /* Start SPI */
   GPIO_SetBits(GPIOE, GPIO_Pin_3);
+  SPI_Cmd(SPI1, ENABLE);
 
   /* Initialize SPI interrupt pins module */
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1 | GPIO_Pin_2; /* INT2, INT1 */
@@ -275,15 +278,25 @@ void init_peripherals(void)
   /* TODO: Initialize SPI interrupt */
   //SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE | SPI_I2S_IT_RXNE, ENABLE);
 
-  SPI_Cmd(SPI1, ENABLE);
-
   if ( !InitAccelerometer() )
   {
-    /* For verification purposes turn green LED on if accelerometer is not initialized. */
-    TIM_SetCompare1(TIM4, 10500);
-    TIM_SetCompare2(TIM4, 10500);
-    TIM_SetCompare3(TIM4, 10500);
-    TIM_SetCompare4(TIM4, 10500);
-    while (1);
+    while (1)
+    {
+      TIM_SetCompare1(TIM4, 10500);
+      TIM_SetCompare2(TIM4, 10500);
+      TIM_SetCompare3(TIM4, 10500);
+      TIM_SetCompare4(TIM4, 10500);
+
+      /* Poor man's delay */
+      for (volatile uint32_t i = 0; i < 200000; ++i);
+
+      TIM_SetCompare1(TIM4, 0);
+      TIM_SetCompare2(TIM4, 0);
+      TIM_SetCompare3(TIM4, 0);
+      TIM_SetCompare4(TIM4, 0);
+
+      /* Poor man's delay */
+      for (volatile uint32_t i = 0; i < 200000; ++i);
+    }
   }
 }
