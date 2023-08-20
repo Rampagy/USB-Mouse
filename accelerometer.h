@@ -10,21 +10,25 @@
 #define LIS3DSH_MULTI_BYTE 0x40 // read or write multiple bytes
 
 /* LIS3DSH Registers */
-#define TEMPERATURE_ADDR (0x0C)
 #define WHO_AM_I_ADDR (0x0F)
-#define STAT_ADDR (0x18)
-#define CTRL_REG3 (0x23)
 #define CTRL_REG4 (0x20)
+#define CTRL_REG3 (0x23)
 #define CTRL_REG5 (0x24)
 #define CTRL_REG6 (0x25)
 #define STATUS_ADDR (0x27)
 #define OUT_X_ACCEL (0x28)
 #define OUT_Y_ACCEL (0x2A)
 #define OUT_Z_ACCEL (0x2C)
-#define FIFO_CTRL (0x2E)
-#define OUTS1_ADDR (0x5F)
+#define FIFO_CTRL_ADDR (0x2E)
+#define FIFO_SRC_ADDR (0x2F)
 
 #define MULTIBYTE_ACCEL_READ_LEN (6)
+
+typedef enum {
+  BYPASS_MODE = 0x00,
+  FIFO_MODE   = 0x20,
+  STREAM_MODE = 0x40
+} AccelFIFOMode_t;
 
 
 typedef struct {
@@ -32,6 +36,7 @@ typedef struct {
 } acceleration_t;
 
 typedef union {
+  int16_t s16[MULTIBYTE_ACCEL_READ_LEN >> 1];
   uint16_t u16[MULTIBYTE_ACCEL_READ_LEN >> 1];
   uint8_t u8[MULTIBYTE_ACCEL_READ_LEN];
 } accel_data;
@@ -39,10 +44,11 @@ typedef union {
 
 uint8_t InitAccelerometer(void);
 void ReadAcceleration(acceleration_t* accel);
+/*
 void ReadTemperature(uint8_t* temp);
 void ReadStatReg(uint8_t* status);
 void ReadStatusReg(uint8_t* status);
 void ReadOutsReg(uint8_t* status);
-
+*/
 
 #endif // ACCELEROMETER_H

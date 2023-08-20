@@ -18,7 +18,7 @@ void test_FPU_test(void* p);
 int main(void) {
   /* Update the MCU and peripheral clock frequencies */
   SystemCoreClockUpdate();
-  NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
+  //NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
   init_peripherals();
 
   // Create a task
@@ -109,13 +109,21 @@ void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuffer, StackT
 void test_FPU_test(void* p) {
   (void)p;
   TickType_t xLastWakeTime;
-  const TickType_t xFrequency = 1000;
+  const TickType_t xFrequency = 100;
 
   /* Initialize the xLastWakeTime variable with the current time. */
   xLastWakeTime = xTaskGetTickCount();
 
   while (1)
   {
+    //TIM_SetCompare1(TIM4, 10500);
+    //TIM_SetCompare2(TIM4, 10500);
+    //TIM_SetCompare3(TIM4, 10500);
+    //TIM_SetCompare4(TIM4, 10500);
+
+    /* Poor man's delay */
+    //for (volatile uint32_t i = 0; i < 100000; ++i);
+
     /* TODO: Why are the accelerations not changing? */
     acceleration_t accels;
     ReadAcceleration(&accels);
@@ -124,35 +132,35 @@ void test_FPU_test(void* p) {
     if (accels.x >= 0)
     {
       /* Turn green on proportional to the accel, turn red off */
-      TIM_SetCompare1(TIM4, (uint32_t)((accels.x / 2.0f) * 10500.0f));
+      TIM_SetCompare1(TIM4, (uint32_t)(accels.x * 10500.0f));
       TIM_SetCompare3(TIM4, 0);
     }
     else
     {
       /* Turn red on proportional to the accel, turn green off */
-      TIM_SetCompare3(TIM4, (uint32_t)((accels.x / -2.0f) * 10500.0f));
+      TIM_SetCompare3(TIM4, (uint32_t)(-accels.x * 10500.0f));
       TIM_SetCompare1(TIM4, 0);
     }
 
     if (accels.y >= 0)
     {
-      /* Turn green on proportional to the accel, turn red off */
-      TIM_SetCompare2(TIM4, (uint32_t)((accels.y / 2.0f) * 10500.0f));
+      /* Turn orange on proportional to the accel, turn blue off */
+      TIM_SetCompare2(TIM4, (uint32_t)(accels.y * 10500.0f));
       TIM_SetCompare4(TIM4, 0);
     }
     else
     {
-      /* Turn red on proportional to the accel, turn green off */
-      TIM_SetCompare4(TIM4, (uint32_t)((accels.y / -2.0f) * 10500.0f));
+      /* Turn blue on proportional to the accel, turn orange off */
+      TIM_SetCompare4(TIM4, (uint32_t)(-accels.y * 10500.0f));
       TIM_SetCompare2(TIM4, 0);
     }
 
     /* Read status reg to clear the flags? */
-    uint8_t tempreg = 0;
+    //uint8_t tempreg = 0;
     //ReadStatusReg(&tempreg);
 
     /* Read interrupt flags to clear the flags? */
-    ReadOutsReg(&tempreg);
+    //ReadOutsReg(&tempreg);
 
     /* Wait for the next cycle. */
     vTaskDelayUntil( &xLastWakeTime, xFrequency );
@@ -207,7 +215,7 @@ void init_peripherals(void)
   /* Initialize the output compare module for use with TIM4 */
   TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;
   TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
-  TIM_OCInitStructure.TIM_Pulse = 1000;
+  TIM_OCInitStructure.TIM_Pulse = 0;
   TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
   TIM_OC1Init(TIM4, &TIM_OCInitStructure);  /* Green */
   TIM_OC2Init(TIM4, &TIM_OCInitStructure);  /* Orange */
@@ -273,7 +281,9 @@ void init_peripherals(void)
   {
     /* For verification purposes turn green LED on if accelerometer is not initialized. */
     TIM_SetCompare1(TIM4, 10500);
-    for (volatile uint32_t i = 0; i < 10000000; ++i);
+    TIM_SetCompare2(TIM4, 10500);
+    TIM_SetCompare3(TIM4, 10500);
+    TIM_SetCompare4(TIM4, 10500);
+    while (1);
   }
-
 }
