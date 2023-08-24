@@ -14,7 +14,7 @@ void ReadOutsReg(uint8_t* status)
 
 void ReadStatusReg(uint8_t* status)
 {
-  SPI1_Read(&(*status), STATUS_ADDR, 1);
+  SPI1_Read(status, STATUS_ADDR, 1);
 }
 
 void ReadFIFOStatusReg(uint8_t* status)
@@ -22,13 +22,13 @@ void ReadFIFOStatusReg(uint8_t* status)
   SPI1_Read(&(*status), FIFO_SRC_ADDR, 1);
 }
 
-/*
+
 void ReadStatReg(uint8_t* status)
 {
   SPI1_Read(&(*status), STAT_ADDR, 1);
 }
 
-
+/*
 void ReadTemperature(uint8_t* temp)
 {
   SPI1_Read(&(*temp), TEMPERATURE_ADDR, 1);
@@ -38,15 +38,17 @@ void ReadTemperature(uint8_t* temp)
 void ReadAcceleration(acceleration_t* accel)
 {
   accel_data reg;
-  uint8_t status0 = 0;
+  //uint8_t status0 = 0;
   uint8_t status1 = 0;
 
   /* Wait for new data to arrive before reading accel data */
-  //while ((status0 & 0x80) == 0x00 && (status0 & 0x40) == 0x00 && (status0 & 0x1F) < 1 && status1 == 0x00)
-  //{
+  //while ((status1 & 0x08) == 0x00)
+  {
   //  ReadFIFOStatusReg(&status0);
-  //  ReadStatusReg(&status1);
-  //}
+    //TIM_SetCompare1(TIM4, 10500);
+    ReadStatusReg(&status1);
+    //TIM_SetCompare1(TIM4, 0);
+  }
 
   // make sure we read at least one x, y, and z
   //if ((status0 & 0x1F) == 0)
@@ -62,14 +64,16 @@ void ReadAcceleration(acceleration_t* accel)
     //status0 = (status0 & 0x1F) - 1;
   }
 
-  //status1 = BYPASS_MODE | 0x0A;
-  //SPI1_Write(&status1, FIFO_CTRL_ADDR, 1);
+
 
   /* Enable FIFO mode*/
   //status1 = 0x70;
   //SPI1_Write(&status1, CTRL_REG6, 1);
 
   //status1 = STREAM_MODE | 0x0A;
+  //SPI1_Write(&status1, FIFO_CTRL_ADDR, 1);
+
+  //status1 = BYPASS_MODE | 0x0A;
   //SPI1_Write(&status1, FIFO_CTRL_ADDR, 1);
 
   /* Parse the results into floats with units of g */
@@ -81,57 +85,62 @@ void ReadAcceleration(acceleration_t* accel)
   //accel->y = (float)(y) / 32767.5f;
   //accel->z = (float)(z) / 32767.5f;
 
-  accel->x = ((int16_t)reg.s8[1] << 8) | (int16_t)reg.s8[0];
-  accel->y = ((int16_t)reg.s8[3] << 8) | (int16_t)reg.s8[2];
-  accel->z = ((int16_t)reg.s8[5] << 8) | (int16_t)reg.s8[4];
+  accel->x = (int16_t)((((uint16_t)reg.s8[1]) << 8) | ((uint16_t)reg.s8[0]));
+  accel->y = (int16_t)((((uint16_t)reg.s8[3]) << 8) | ((uint16_t)reg.s8[2]));
+  accel->z = (int16_t)((((uint16_t)reg.s8[5]) << 8) | ((uint16_t)reg.s8[4]));
 }
 
 
 uint8_t InitAccelerometer(void)
 {
-  /* Poor man's delay */
-  for (volatile uint32_t i = 0; i < 100000; ++i);
+  uint8_t tmpreg = 0;
 
-  uint8_t tmpreg = 0x67; // 100Hz, continuous update, x, y, z enabled
+  /* Poor man's delay */
+  for (volatile uint32_t i = 0; i < 1000000; ++i);
+
+  tmpreg = 0x67; // 100Hz, continuous update, x, y, z enabled
   SPI1_Write(&tmpreg, CTRL_REG4, 1);
 
   /* Poor man's delay */
-  for (volatile uint32_t i = 0; i < 100000; ++i);
+  for (volatile uint32_t i = 0; i < 1000000; ++i);
+
+  tmpreg = 0xC8;
+  SPI1_Write(&tmpreg, CTRL_REG3, 1);
 
   /* 200 hz bandwidth filter */
   tmpreg = 0x40;
   SPI1_Write(&tmpreg, CTRL_REG5, 1);
 
   /* Poor man's delay */
-  for (volatile uint32_t i = 0; i < 100000; ++i);
+  for (volatile uint32_t i = 0; i < 1000000; ++i);
 
   /* Read accel */
-  acceleration_t accels_baseline;
-  ReadAcceleration(&accels_baseline);
+  //acceleration_t accels_baseline;
+  //ReadAcceleration(&accels_baseline);
 
   /* Positive self test */
-  tmpreg = 0x42;
-  SPI1_Write(&tmpreg, CTRL_REG5, 1);
+  //tmpreg = 0x42;
+  //SPI1_Write(&tmpreg, CTRL_REG5, 1);
 
   /* Poor man's delay */
-  for (volatile uint32_t i = 0; i < 100000; ++i);
+  //for (volatile uint32_t i = 0; i < 1000000; ++i);
 
-  acceleration_t accels_positive;
-  ReadAcceleration(&accels_positive);
+  //acceleration_t accels_positive;
+  //ReadAcceleration(&accels_positive);
 
   /* Negative self test */
-  tmpreg = 0x44;
-  SPI1_Write(&tmpreg, CTRL_REG5, 1);
+  //tmpreg = 0x44;
+  //SPI1_Write(&tmpreg, CTRL_REG5, 1);
 
   /* Poor man's delay */
-  for (volatile uint32_t i = 0; i < 100000; ++i);
+  //for (volatile uint32_t i = 0; i < 1000000; ++i);
 
-  acceleration_t accels_negative;
-  ReadAcceleration(&accels_negative);
+  //acceleration_t accels_negative;
+  //ReadAcceleration(&accels_negative);
 
   /* 200 hz bandwidth filter, self test is off */
-  tmpreg = 0x40;
-  SPI1_Write(&tmpreg, CTRL_REG5, 1);
+  //tmpreg = 0x40;
+  //SPI1_Write(&tmpreg, CTRL_REG5, 1);
 
   //tmpreg = 0x70;
   //SPI1_Write(&tmpreg, CTRL_REG6, 1);
@@ -144,13 +153,13 @@ uint8_t InitAccelerometer(void)
   SPI1_Read(&who_am_i, WHO_AM_I_ADDR, 1);
 
   uint8_t init_success_flag = 0;
-  if ((who_am_i == 0x3F) &&
-      (0.06f*(accels_positive.x - accels_baseline.x) > 50.0f) &&
-      (0.06f*(accels_positive.y - accels_baseline.y) > 50.0f) &&
-      (0.06f*(accels_positive.z - accels_baseline.z) > 200.0f) &&
-      (0.06f*(accels_negative.x - accels_baseline.x) < -50.0f) &&
-      (0.06f*(accels_negative.y - accels_baseline.y) < -50.0f) &&
-      (0.06f*(accels_negative.z - accels_baseline.z) < -200.0f))
+  if ((who_am_i == 0x3F))// &&
+      //(0.06f*(accels_positive.x - accels_baseline.x) > 0.0f) &&
+      //(0.06f*(accels_positive.y - accels_baseline.y) > 0.0f) &&
+      //(0.06f*(accels_positive.z - accels_baseline.z) > 0.0f) &&
+      //(0.06f*(accels_negative.x - accels_baseline.x) < -0.0f) &&
+      //(0.06f*(accels_negative.y - accels_baseline.y) < -0.0f) &&
+      //(0.06f*(accels_negative.z - accels_baseline.z) < -0.0f))
   {
     init_success_flag = 1;
   }
@@ -172,7 +181,9 @@ void SPI1_Write(uint8_t* pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite)
 
   /* Set chip select Low at the start of the transmission */
   GPIO_ResetBits(GPIOE, GPIO_Pin_3);
-  
+
+  for (volatile uint32_t i = 0; i < 1000; ++i);
+
   /* Send the Address of the indexed register */
   (void)SPI1_SendByte(WriteAddr);
 
@@ -183,7 +194,9 @@ void SPI1_Write(uint8_t* pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite)
     NumByteToWrite--;
     pBuffer++;
   }
-  
+
+  for (volatile uint32_t i = 0; i < 1000; ++i);
+
   /* Set chip select High at the end of the transmission */ 
   GPIO_SetBits(GPIOE, GPIO_Pin_3);
 }
@@ -202,7 +215,9 @@ void SPI1_Read(uint8_t* pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead)
 
   /* Set chip select Low at the start of the transmission */
   GPIO_ResetBits(GPIOE, GPIO_Pin_3);
-  
+
+  for (volatile uint32_t i = 0; i < 1000; ++i);
+
   /* Send the Address of the indexed register */
   (void)SPI1_SendByte(ReadAddr);
   
@@ -214,6 +229,8 @@ void SPI1_Read(uint8_t* pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead)
     NumByteToRead--;
     pBuffer++;
   }
+
+  for (volatile uint32_t i = 0; i < 1000; ++i);
 
   /* Set chip select High at the end of the transmission */ 
   GPIO_SetBits(GPIOE, GPIO_Pin_3);

@@ -10,7 +10,10 @@
 #define LIS3DSH_MULTI_BYTE 0x40 // read or write multiple bytes
 
 /* LIS3DSH Registers */
+#define INFO1_ADDR (0x0D)
+#define INFO2_ADDR (0x0E)
 #define WHO_AM_I_ADDR (0x0F)
+#define STAT_ADDR (0x18)
 #define CTRL_REG4 (0x20)
 #define CTRL_REG3 (0x23)
 #define CTRL_REG5 (0x24)
@@ -32,12 +35,12 @@ typedef enum {
 
 
 typedef struct {
-  float x, y, z;
+  int16_t x, y, z;
 } acceleration_t;
 
 typedef union {
-  int16_t s16[MULTIBYTE_ACCEL_READ_LEN >> 1];
-  uint16_t u16[MULTIBYTE_ACCEL_READ_LEN >> 1];
+  int16_t s16[MULTIBYTE_ACCEL_READ_LEN / 2];
+  uint16_t u16[MULTIBYTE_ACCEL_READ_LEN / 2];
   uint8_t u8[MULTIBYTE_ACCEL_READ_LEN];
   int8_t s8[MULTIBYTE_ACCEL_READ_LEN];
 } accel_data;

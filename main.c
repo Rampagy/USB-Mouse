@@ -109,7 +109,7 @@ void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuffer, StackT
 void test_FPU_test(void* p) {
   (void)p;
   TickType_t xLastWakeTime;
-  const TickType_t xFrequency = 100;
+  const TickType_t xFrequency = 1000;
 
   /* Initialize the xLastWakeTime variable with the current time. */
   xLastWakeTime = xTaskGetTickCount();
@@ -129,29 +129,29 @@ void test_FPU_test(void* p) {
     ReadAcceleration(&accels);
 
     /* Set LED brightness based on acceleration. */
-    if (accels.x > 20)
+    if (accels.x > 0)
     {
       /* Turn green on proportional to the accel, turn red off */
-      TIM_SetCompare1(TIM4, (uint32_t)(accels.x * 41.0f));
+      TIM_SetCompare1(TIM4, (uint32_t)(accels.x * 0.33f));
       TIM_SetCompare3(TIM4, 0);
     }
-    else if (accels.x < -20)
+    else if (accels.x < -0)
     {
       /* Turn red on proportional to the accel, turn green off */
-      TIM_SetCompare3(TIM4, (uint32_t)(-accels.x * 41.0f));
+      TIM_SetCompare3(TIM4, (uint32_t)(-accels.x * 0.33f));
       TIM_SetCompare1(TIM4, 0);
     }
 
-    if (accels.y > 20)
+    if (accels.y > 0)
     {
       /* Turn orange on proportional to the accel, turn blue off */
-      TIM_SetCompare2(TIM4, (uint32_t)(accels.y * 41.0f));
+      TIM_SetCompare2(TIM4, (uint32_t)(accels.y * 0.33f));
       TIM_SetCompare4(TIM4, 0);
     }
-    else if (accels.y < -20)
+    else if (accels.y < -0)
     {
       /* Turn blue on proportional to the accel, turn orange off */
-      TIM_SetCompare4(TIM4, (uint32_t)(-accels.y * 41.0f));
+      TIM_SetCompare4(TIM4, (uint32_t)(-accels.y * 0.33f));
       TIM_SetCompare2(TIM4, 0);
     }
 
@@ -177,6 +177,8 @@ void init_peripherals(void)
   TIM_TimeBaseInitTypeDef TIM_InitStructure;
   TIM_OCInitTypeDef TIM_OCInitStructure;
   
+  //SPI_I2S_DeInit(SPI1);
+
   /* Enable the GPIOD Clock */
   RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA | RCC_AHB1Periph_GPIOD | RCC_AHB1Periph_GPIOE, ENABLE); // 168 MHz
 
@@ -243,14 +245,13 @@ void init_peripherals(void)
   GPIO_PinAFConfig(GPIOA, GPIO_PinSource7, GPIO_AF_SPI1);
 
   /* Initialize SPI module */
-  SPI_I2S_DeInit(SPI1);
   SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
   SPI_InitStructure.SPI_Mode = SPI_Mode_Master;
   SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;
   SPI_InitStructure.SPI_CPOL = SPI_CPOL_High;
   SPI_InitStructure.SPI_CPHA = SPI_CPHA_2Edge;
-  SPI_InitStructure.SPI_NSS = SPI_NSS_Soft | SPI_NSSInternalSoft_Set; /* software management of slave select (chip select) */
-  SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4; /* 84 MHz / 16 = 5.25 MHz */
+  SPI_InitStructure.SPI_NSS = SPI_NSS_Soft; /* software management of slave select (chip select) */
+  SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_16; /* 84 MHz / 16 = 5.25 MHz */
   SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
   SPI_InitStructure.SPI_CRCPolynomial = 7;
   SPI_Init(SPI1, &SPI_InitStructure);
@@ -268,10 +269,10 @@ void init_peripherals(void)
   SPI_Cmd(SPI1, ENABLE);
 
   /* Initialize SPI interrupt pins module */
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1 | GPIO_Pin_2; /* INT2, INT1 */
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1; /* INT2, INT1 */
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
   GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
   GPIO_Init(GPIOE, &GPIO_InitStructure);
 
@@ -288,7 +289,7 @@ void init_peripherals(void)
       TIM_SetCompare4(TIM4, 10500);
 
       /* Poor man's delay */
-      for (volatile uint32_t i = 0; i < 200000; ++i);
+      for (volatile uint32_t i = 0; i < 100000; ++i);
 
       TIM_SetCompare1(TIM4, 0);
       TIM_SetCompare2(TIM4, 0);
@@ -296,7 +297,7 @@ void init_peripherals(void)
       TIM_SetCompare4(TIM4, 0);
 
       /* Poor man's delay */
-      for (volatile uint32_t i = 0; i < 200000; ++i);
+      for (volatile uint32_t i = 0; i < 100000; ++i);
     }
   }
 }
