@@ -1,9 +1,10 @@
 #ifndef ACCELEROMETER_H
 #define ACCELEROMETER_H
 
+#include <stdio.h>
 
 #include "stm32f4xx.h"
-
+#include "uart.h"
 
 /* LIS3DSH Commands */
 #define LIS3DSH_READ_BIT 0x80
@@ -27,27 +28,29 @@
 
 #define MULTIBYTE_ACCEL_READ_LEN (6)
 
-typedef enum {
+typedef enum
+{
   BYPASS_MODE = 0x00,
-  FIFO_MODE   = 0x20,
+  FIFO_MODE = 0x20,
   STREAM_MODE = 0x40
 } AccelFIFOMode_t;
 
-
-typedef struct {
+typedef struct
+{
   int16_t x, y, z;
 } acceleration_t;
 
-typedef union {
+typedef union
+{
   int16_t s16[MULTIBYTE_ACCEL_READ_LEN / 2];
   uint16_t u16[MULTIBYTE_ACCEL_READ_LEN / 2];
   uint8_t u8[MULTIBYTE_ACCEL_READ_LEN];
   int8_t s8[MULTIBYTE_ACCEL_READ_LEN];
+  char c8[MULTIBYTE_ACCEL_READ_LEN];
 } accel_data;
 
-
 uint8_t InitAccelerometer(void);
-void ReadAcceleration(acceleration_t* accel);
+void ReadAcceleration(acceleration_t *accel);
 /*
 void ReadTemperature(uint8_t* temp);
 void ReadStatReg(uint8_t* status);

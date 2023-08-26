@@ -144,26 +144,26 @@ void test_FPU_test(void *p)
     if (accels.x > 0)
     {
       /* Turn green on proportional to the accel, turn red off */
-      TIM_SetCompare1(TIM4, (uint32_t)(accels.x * 0.33f));
+      TIM_SetCompare1(TIM4, (uint32_t)(accels.x * 0.32f));
       TIM_SetCompare3(TIM4, 0);
     }
     else if (accels.x < -0)
     {
       /* Turn red on proportional to the accel, turn green off */
-      TIM_SetCompare3(TIM4, (uint32_t)(-accels.x * 0.33f));
+      TIM_SetCompare3(TIM4, (uint32_t)(-accels.x * 0.32f));
       TIM_SetCompare1(TIM4, 0);
     }
 
     if (accels.y > 0)
     {
       /* Turn orange on proportional to the accel, turn blue off */
-      TIM_SetCompare2(TIM4, (uint32_t)(accels.y * 0.33f));
+      TIM_SetCompare2(TIM4, (uint32_t)(accels.y * 0.32f));
       TIM_SetCompare4(TIM4, 0);
     }
     else if (accels.y < -0)
     {
       /* Turn blue on proportional to the accel, turn orange off */
-      TIM_SetCompare4(TIM4, (uint32_t)(-accels.y * 0.33f));
+      TIM_SetCompare4(TIM4, (uint32_t)(-accels.y * 0.32f));
       TIM_SetCompare2(TIM4, 0);
     }
 
@@ -329,7 +329,7 @@ void init_peripherals(void)
 
   if (!InitAccelerometer())
   {
-    (void)UARTQueueData("Accelerometer Init failed\n\0");
+    (void)UARTQueueData("Accelerometer Init failed\r\n\0");
     while (1)
     {
       TIM_SetCompare1(TIM4, 10500);
@@ -353,6 +353,6 @@ void init_peripherals(void)
   }
   else
   {
-    (void)UARTQueueData("Accelerometer Init passed\n\0");
+    (void)UARTQueueData("Accelerometer Init passed\r\n\0");
   }
 }
