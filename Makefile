@@ -67,6 +67,7 @@ ASRC=startup_stm32f4xx.s
 
 # Application Files
 SRC+=accelerometer.c
+SRC+=uart.c
 
 # Project Source Files
 SRC+=stm32f4xx_it.c
