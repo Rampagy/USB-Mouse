@@ -147,7 +147,7 @@ void test_FPU_test(void *p)
       TIM_SetCompare1(TIM4, (uint32_t)(accels.x * 0.32f));
       TIM_SetCompare3(TIM4, 0);
     }
-    else if (accels.x < -0)
+    else if (accels.x < 0)
     {
       /* Turn red on proportional to the accel, turn green off */
       TIM_SetCompare3(TIM4, (uint32_t)(-accels.x * 0.32f));
@@ -160,7 +160,7 @@ void test_FPU_test(void *p)
       TIM_SetCompare2(TIM4, (uint32_t)(accels.y * 0.32f));
       TIM_SetCompare4(TIM4, 0);
     }
-    else if (accels.y < -0)
+    else if (accels.y < 0)
     {
       /* Turn blue on proportional to the accel, turn orange off */
       TIM_SetCompare4(TIM4, (uint32_t)(-accels.y * 0.32f));
@@ -327,7 +327,7 @@ void init_peripherals(void)
   /* TODO: Initialize SPI interrupt */
   // SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE | SPI_I2S_IT_RXNE, ENABLE);
 
-  if (!InitAccelerometer())
+  if (InitAccelerometer() != 3U)
   {
     (void)UARTQueueData("Accelerometer Init failed\r\n\0");
     while (1)

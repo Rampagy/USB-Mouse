@@ -12,7 +12,7 @@ void UARTSendData(void)
   {
     uart_buffer[i] = uart_buffer[i + 1];
   }
-  uart_buffer[uart_tx_buffer_size] = 0;
+  uart_buffer[uart_tx_buffer_size - 1] = 0;
 
   uart_tx_buffer_size--;
 }
@@ -47,8 +47,6 @@ UARTResponseCode_t UARTQueueData(char *buffer)
       uart_tx_buffer_size++;
     }
 
-    taskEXIT_CRITICAL();
-
     /* Check if transmit mode needs to be enabled */
     if (!(USART3->CR1 & USART_Mode_Tx))
     {
@@ -58,6 +56,8 @@ UARTResponseCode_t UARTQueueData(char *buffer)
       /* Turn Tx mode on */
       USART3->CR1 |= USART_Mode_Tx;
     }
+
+    taskEXIT_CRITICAL();
   }
 
   return return_code;
@@ -92,6 +92,4 @@ void USART3_IRQHandler(void)
 
   /* Re-enable interrupts and other tasks. */
   taskEXIT_CRITICAL_FROM_ISR(uxSavedInterruptStatus);
-
-  return;
 }

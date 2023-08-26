@@ -81,18 +81,98 @@ void ReadAcceleration(acceleration_t *accel)
   // accel->y = (float)(y) / 32767.5f;
   // accel->z = (float)(z) / 32767.5f;
 
-  accel->x = (int16_t)((((uint16_t)reg.s8[1]) << 8) | ((uint16_t)reg.s8[0]));
-  accel->y = (int16_t)((((uint16_t)reg.s8[3]) << 8) | ((uint16_t)reg.s8[2]));
-  accel->z = (int16_t)((((uint16_t)reg.s8[5]) << 8) | ((uint16_t)reg.s8[4]));
+  accel->x = (int16_t)((reg.s8[1] << 8) | reg.s8[0]);
+  accel->y = (int16_t)((reg.s8[3] << 8) | reg.s8[2]);
+  accel->z = (int16_t)((reg.s8[5] << 8) | reg.s8[4]);
 
-  char accel_str[64];
-  (void)sprintf(accel_str, "x: %d y: %d z: %d\r\n\0", accel->x, accel->y, accel->z);
+  char accel_str[64] = {'\0'};
+  (void)sprintf(accel_str, "x: %d y: %d z: %d\r\n", accel->x, accel->y, accel->z);
   UARTQueueData(accel_str);
+}
+
+uint8_t self_test(void)
+{
+  uint8_t tmpreg = 0;
+
+  /* Read accel */
+  acceleration_t accels_baseline;
+  ReadAcceleration(&accels_baseline);
+
+  /* Positive self test */
+  tmpreg = 0x42;
+  SPI1_Write(&tmpreg, CTRL_REG5, 1);
+
+  /* Poor man's delay */
+  for (volatile uint32_t i = 0; i < 10000000; ++i)
+    ;
+
+  acceleration_t accels_positive;
+  ReadAcceleration(&accels_positive);
+
+  /* Negative self test */
+  tmpreg = 0x44;
+  SPI1_Write(&tmpreg, CTRL_REG5, 1);
+
+  /* Poor man's delay */
+  for (volatile uint32_t i = 0; i < 10000000; ++i)
+    ;
+
+  acceleration_t accels_negative;
+  ReadAcceleration(&accels_negative);
+
+  /* 200 hz bandwidth filter, self test is off */
+  tmpreg = 0x40;
+  SPI1_Write(&tmpreg, CTRL_REG5, 1);
+
+  /* Read the WHO_AM_I reg to verify functionality */
+  uint8_t who_am_i = 0;
+  SPI1_Read(&who_am_i, WHO_AM_I_ADDR, 1);
+
+  uint8_t info1 = 0;
+  SPI1_Read(&info1, INFO1_ADDR, 1);
+
+  uint8_t info2 = 0;
+  SPI1_Read(&info2, INFO2_ADDR, 1);
+
+  {
+    char init_regs[64] = {'\0'};
+    sprintf(&init_regs[0], "INFO1 %02X, INFO2 %02X, WhoAmI %02X\r\n", info1, info2, who_am_i);
+    (void)UARTQueueData(&init_regs[0]);
+  }
+
+  uint8_t init_success_flag = 0;
+  if ((who_am_i == 0x3F) && (info1 == 0x21) && (info2 == 0x00))
+  {
+    init_success_flag |= 0x01;
+  }
+
+  if (((0.06f * ((float)accels_positive.x - (float)accels_baseline.x)) > 0.0f) &&
+      ((0.06f * ((float)accels_positive.y - (float)accels_baseline.y)) > 0.0f) &&
+      ((0.06f * ((float)accels_positive.z - (float)accels_baseline.z)) > 0.0f) &&
+      ((0.06f * ((float)accels_negative.x - (float)accels_baseline.x)) < 0.0f) &&
+      ((0.06f * ((float)accels_negative.y - (float)accels_baseline.y)) < 0.0f) &&
+      ((0.06f * ((float)accels_negative.z - (float)accels_baseline.z)) < 0.0f))
+  {
+    init_success_flag |= 0x02;
+  }
+
+  /* Poor man's delay */
+  for (volatile uint32_t i = 0; i < 10000000; ++i)
+    ;
+
+  {
+    char init_regs[64] = {'\0'};
+    sprintf(&init_regs[0], "SF %02X\r\n", init_success_flag);
+    (void)UARTQueueData(&init_regs[0]);
+  }
+
+  return init_success_flag;
 }
 
 uint8_t InitAccelerometer(void)
 {
   uint8_t tmpreg = 0;
+  uint8_t reg_read[6] = {0};
 
   /* Poor man's delay */
   for (volatile uint32_t i = 0; i < 1000000; ++i)
@@ -105,44 +185,21 @@ uint8_t InitAccelerometer(void)
   for (volatile uint32_t i = 0; i < 1000000; ++i)
     ;
 
-  tmpreg = 0xC8;
+  tmpreg = 0x00;
+  SPI1_Write(&tmpreg, CTRL_REG1, 1);
+
+  tmpreg = 0x00;
+  SPI1_Write(&tmpreg, CTRL_REG2, 1);
+
+  tmpreg = 0x00;
   SPI1_Write(&tmpreg, CTRL_REG3, 1);
 
   /* 200 hz bandwidth filter */
-  tmpreg = 0x40;
+  tmpreg = 0x00;
   SPI1_Write(&tmpreg, CTRL_REG5, 1);
 
-  /* Poor man's delay */
-  for (volatile uint32_t i = 0; i < 1000000; ++i)
-    ;
-
-  /* Read accel */
-  // acceleration_t accels_baseline;
-  // ReadAcceleration(&accels_baseline);
-
-  /* Positive self test */
-  // tmpreg = 0x42;
-  // SPI1_Write(&tmpreg, CTRL_REG5, 1);
-
-  /* Poor man's delay */
-  // for (volatile uint32_t i = 0; i < 1000000; ++i);
-
-  // acceleration_t accels_positive;
-  // ReadAcceleration(&accels_positive);
-
-  /* Negative self test */
-  // tmpreg = 0x44;
-  // SPI1_Write(&tmpreg, CTRL_REG5, 1);
-
-  /* Poor man's delay */
-  // for (volatile uint32_t i = 0; i < 1000000; ++i);
-
-  // acceleration_t accels_negative;
-  // ReadAcceleration(&accels_negative);
-
-  /* 200 hz bandwidth filter, self test is off */
-  // tmpreg = 0x40;
-  // SPI1_Write(&tmpreg, CTRL_REG5, 1);
+  tmpreg = 0x10;
+  SPI1_Write(&tmpreg, CTRL_REG6, 1);
 
   // tmpreg = 0x70;
   // SPI1_Write(&tmpreg, CTRL_REG6, 1);
@@ -150,23 +207,40 @@ uint8_t InitAccelerometer(void)
   // tmpreg = STREAM_MODE | 0x0A;
   // SPI1_Write(&tmpreg, FIFO_CTRL_ADDR, 1);
 
-  /* Read the WHO_AM_I reg to verify functionality */
-  uint8_t who_am_i = 0;
-  SPI1_Read(&who_am_i, WHO_AM_I_ADDR, 1);
+  SPI1_Read(&reg_read[0], STAT_ADDR, 1);
+  SPI1_Read(&reg_read[1], CTRL_REG4, 1);
+  SPI1_Read(&reg_read[2], CTRL_REG3, 1);
+  SPI1_Read(&reg_read[3], CTRL_REG5, 1);
+  SPI1_Read(&reg_read[4], CTRL_REG6, 1);
+  SPI1_Read(&reg_read[5], STATUS_ADDR, 1);
 
-  uint8_t init_success_flag = 0;
-  if ((who_am_i == 0x3F)) // &&
-                          //(0.06f*(accels_positive.x - accels_baseline.x) > 0.0f) &&
-                          //(0.06f*(accels_positive.y - accels_baseline.y) > 0.0f) &&
-                          //(0.06f*(accels_positive.z - accels_baseline.z) > 0.0f) &&
-                          //(0.06f*(accels_negative.x - accels_baseline.x) < -0.0f) &&
-                          //(0.06f*(accels_negative.y - accels_baseline.y) < -0.0f) &&
-                          //(0.06f*(accels_negative.z - accels_baseline.z) < -0.0f))
   {
-    init_success_flag = 1;
+    char init_regs[64] = {'\0'};
+    sprintf(&init_regs[0], "STAT %02X, REG4 %02X, REG3 %02X, REG5 %02X, REG6 %02X, STATUS %02X\r\n", reg_read[0], reg_read[1], reg_read[2], reg_read[3], reg_read[4], reg_read[5]);
+    (void)UARTQueueData(&init_regs[0]);
   }
 
-  return init_success_flag;
+  /* Poor man's delay */
+  for (volatile uint32_t i = 0; i < 10000000; ++i)
+    ;
+
+  SPI1_Read(&reg_read[0], FIFO_CTRL_ADDR, 1);
+  SPI1_Read(&reg_read[1], FIFO_SRC_ADDR, 1);
+  SPI1_Read(&reg_read[2], INFO1_ADDR, 1);
+  SPI1_Read(&reg_read[3], INFO2_ADDR, 1);
+  SPI1_Read(&reg_read[4], WHO_AM_I_ADDR, 1);
+
+  {
+    char init_regs[64] = {'\0'};
+    sprintf(&init_regs[0], "FIFO_CTRL %02X, FIFO SRC %02X, INFO1 %02X, INFO2 %02X, WhoAmI %02X\r\n", reg_read[0], reg_read[1], reg_read[2], reg_read[3], reg_read[4]);
+    (void)UARTQueueData(&init_regs[0]);
+  }
+
+  /* Poor man's delay */
+  for (volatile uint32_t i = 0; i < 10000000; ++i)
+    ;
+
+  return self_test();
 }
 
 void SPI1_Write(uint8_t *pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite)

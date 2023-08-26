@@ -7,8 +7,8 @@
 #include "uart.h"
 
 /* LIS3DSH Commands */
-#define LIS3DSH_READ_BIT 0x80
-#define LIS3DSH_MULTI_BYTE 0x40 // read or write multiple bytes
+#define LIS3DSH_READ_BIT (0x80)
+#define LIS3DSH_MULTI_BYTE (0x40) // read or write multiple bytes
 
 /* LIS3DSH Registers */
 #define INFO1_ADDR (0x0D)
@@ -16,6 +16,8 @@
 #define WHO_AM_I_ADDR (0x0F)
 #define STAT_ADDR (0x18)
 #define CTRL_REG4 (0x20)
+#define CTRL_REG1 (0x21)
+#define CTRL_REG2 (0x22)
 #define CTRL_REG3 (0x23)
 #define CTRL_REG5 (0x24)
 #define CTRL_REG6 (0x25)
