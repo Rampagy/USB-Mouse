@@ -36,94 +36,26 @@ void ReadTemperature(uint8_t* temp)
 void ReadAcceleration(acceleration_t *accel)
 {
   accel_data reg;
-  // uint8_t status0 = 0;
-  uint8_t status1 = 0;
 
-  /* Wait for new data to arrive before reading accel data */
-  // while ((status1 & 0x08) == 0x00)
-  {
-    //  ReadFIFOStatusReg(&status0);
-    // TIM_SetCompare1(TIM4, 10500);
-    ReadStatusReg(&status1);
-    // TIM_SetCompare1(TIM4, 0);
-  }
+  /* Read 6 bytes: x acceleration, y acceleration, and z acceleration. */
+  SPI1_Read(&reg.u8[0], OUT_X_ACCEL_L, 1);
+  SPI1_Read(&reg.u8[1], OUT_X_ACCEL_H, 1);
+  SPI1_Read(&reg.u8[2], OUT_Y_ACCEL_L, 1);
+  SPI1_Read(&reg.u8[3], OUT_Y_ACCEL_H, 1);
+  SPI1_Read(&reg.u8[4], OUT_Z_ACCEL_L, 1);
+  SPI1_Read(&reg.u8[5], OUT_Z_ACCEL_H, 1);
 
-  // make sure we read at least one x, y, and z
-  // if ((status0 & 0x1F) == 0)
-  //{
-  //  status0 = 1;
-  //}
-
-  /* Clear out the FIFO buffer */
-  // while ((status0 & 0x1F) > 0)
-  {
-    /* Read 6 bytes: x acceleration, y acceleration, and z acceleration. */
-    SPI1_Read(&reg.u8[0], OUT_X_ACCEL, MULTIBYTE_ACCEL_READ_LEN);
-    // status0 = (status0 & 0x1F) - 1;
-  }
-
-  /* Enable FIFO mode*/
-  // status1 = 0x70;
-  // SPI1_Write(&status1, CTRL_REG6, 1);
-
-  // status1 = STREAM_MODE | 0x0A;
-  // SPI1_Write(&status1, FIFO_CTRL_ADDR, 1);
-
-  // status1 = BYPASS_MODE | 0x0A;
-  // SPI1_Write(&status1, FIFO_CTRL_ADDR, 1);
-
-  /* Parse the results into floats with units of g */
-  // int16_t x = (int16_t)(((uint16_t)reg.u8[1] << 8) | (uint16_t)reg.u8[0]);
-  // int16_t y = (int16_t)(((uint16_t)reg.u8[3] << 8) | (uint16_t)reg.u8[2]);
-  // int16_t z = (int16_t)(((uint16_t)reg.u8[5] << 8) | (uint16_t)reg.u8[4]);
-
-  // accel->x = (float)(x) / 32767.5f;
-  // accel->y = (float)(y) / 32767.5f;
-  // accel->z = (float)(z) / 32767.5f;
-
-  accel->x = (int16_t)((reg.s8[1] << 8) | reg.s8[0]);
-  accel->y = (int16_t)((reg.s8[3] << 8) | reg.s8[2]);
-  accel->z = (int16_t)((reg.s8[5] << 8) | reg.s8[4]);
+  accel->x = 0.061f * ((float)reg.s16[0]); //  mg
+  accel->y = 0.061f * ((float)reg.s16[1]); //  mg
+  accel->z = 0.061f * ((float)reg.s16[2]); //  mg
 
   char accel_str[64] = {'\0'};
-  (void)sprintf(accel_str, "x: %d y: %d z: %d\r\n", accel->x, accel->y, accel->z);
+  (void)sprintf(accel_str, "x: %dmg y: %dmg z: %dmg\r\n", (int16_t)(accel->x), (int16_t)(accel->y), (int16_t)(accel->z));
   UARTQueueData(accel_str);
 }
 
 uint8_t self_test(void)
 {
-  uint8_t tmpreg = 0;
-
-  /* Read accel */
-  acceleration_t accels_baseline;
-  ReadAcceleration(&accels_baseline);
-
-  /* Positive self test */
-  tmpreg = 0x42;
-  SPI1_Write(&tmpreg, CTRL_REG5, 1);
-
-  /* Poor man's delay */
-  for (volatile uint32_t i = 0; i < 10000000; ++i)
-    ;
-
-  acceleration_t accels_positive;
-  ReadAcceleration(&accels_positive);
-
-  /* Negative self test */
-  tmpreg = 0x44;
-  SPI1_Write(&tmpreg, CTRL_REG5, 1);
-
-  /* Poor man's delay */
-  for (volatile uint32_t i = 0; i < 10000000; ++i)
-    ;
-
-  acceleration_t accels_negative;
-  ReadAcceleration(&accels_negative);
-
-  /* 200 hz bandwidth filter, self test is off */
-  tmpreg = 0x40;
-  SPI1_Write(&tmpreg, CTRL_REG5, 1);
-
   /* Read the WHO_AM_I reg to verify functionality */
   uint8_t who_am_i = 0;
   SPI1_Read(&who_am_i, WHO_AM_I_ADDR, 1);
@@ -146,18 +78,8 @@ uint8_t self_test(void)
     init_success_flag |= 0x01;
   }
 
-  if (((0.06f * ((float)accels_positive.x - (float)accels_baseline.x)) > 0.0f) &&
-      ((0.06f * ((float)accels_positive.y - (float)accels_baseline.y)) > 0.0f) &&
-      ((0.06f * ((float)accels_positive.z - (float)accels_baseline.z)) > 0.0f) &&
-      ((0.06f * ((float)accels_negative.x - (float)accels_baseline.x)) < 0.0f) &&
-      ((0.06f * ((float)accels_negative.y - (float)accels_baseline.y)) < 0.0f) &&
-      ((0.06f * ((float)accels_negative.z - (float)accels_baseline.z)) < 0.0f))
-  {
-    init_success_flag |= 0x02;
-  }
-
   /* Poor man's delay */
-  for (volatile uint32_t i = 0; i < 10000000; ++i)
+  for (volatile uint32_t i = 0; i < 100000; ++i)
     ;
 
   {
@@ -174,15 +96,41 @@ uint8_t InitAccelerometer(void)
   uint8_t tmpreg = 0;
   uint8_t reg_read[6] = {0};
 
-  /* Poor man's delay */
-  for (volatile uint32_t i = 0; i < 1000000; ++i)
-    ;
+  /* Reset accelerometer before configuring it */
+  tmpreg = 0x80;
+  SPI1_Write(&tmpreg, CTRL_REG6, 1);
+
+  /* Wait until reboot is finished */
+  tmpreg = 0U;
+  while (tmpreg & 0x80)
+  {
+    /* Poor man's delay */
+    for (volatile uint32_t i = 0; i < 10000; ++i)
+      ;
+
+    SPI1_Read(&tmpreg, CTRL_REG6, 1);
+  }
+
+  /* Soft reset the accelerometer before configuring it */
+  tmpreg = 0x01;
+  SPI1_Write(&tmpreg, CTRL_REG3, 1);
+
+  /* Wait until soft reset is finished */
+  tmpreg = 0U;
+  while (tmpreg & 0x01)
+  {
+    /* Poor man's delay */
+    for (volatile uint32_t i = 0; i < 10000; ++i)
+      ;
+
+    SPI1_Read(&tmpreg, CTRL_REG3, 1);
+  }
 
   tmpreg = 0x67; // 100Hz, continuous update, x, y, z enabled
   SPI1_Write(&tmpreg, CTRL_REG4, 1);
 
   /* Poor man's delay */
-  for (volatile uint32_t i = 0; i < 1000000; ++i)
+  for (volatile uint32_t i = 0; i < 10000; ++i)
     ;
 
   tmpreg = 0x00;
@@ -195,17 +143,11 @@ uint8_t InitAccelerometer(void)
   SPI1_Write(&tmpreg, CTRL_REG3, 1);
 
   /* 200 hz bandwidth filter */
-  tmpreg = 0x00;
+  tmpreg = 0x40;
   SPI1_Write(&tmpreg, CTRL_REG5, 1);
 
   tmpreg = 0x10;
   SPI1_Write(&tmpreg, CTRL_REG6, 1);
-
-  // tmpreg = 0x70;
-  // SPI1_Write(&tmpreg, CTRL_REG6, 1);
-
-  // tmpreg = STREAM_MODE | 0x0A;
-  // SPI1_Write(&tmpreg, FIFO_CTRL_ADDR, 1);
 
   SPI1_Read(&reg_read[0], STAT_ADDR, 1);
   SPI1_Read(&reg_read[1], CTRL_REG4, 1);
@@ -221,7 +163,7 @@ uint8_t InitAccelerometer(void)
   }
 
   /* Poor man's delay */
-  for (volatile uint32_t i = 0; i < 10000000; ++i)
+  for (volatile uint32_t i = 0; i < 100000; ++i)
     ;
 
   SPI1_Read(&reg_read[0], FIFO_CTRL_ADDR, 1);
@@ -237,7 +179,7 @@ uint8_t InitAccelerometer(void)
   }
 
   /* Poor man's delay */
-  for (volatile uint32_t i = 0; i < 10000000; ++i)
+  for (volatile uint32_t i = 0; i < 100000; ++i)
     ;
 
   return self_test();

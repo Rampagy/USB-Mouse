@@ -22,9 +22,12 @@
 #define CTRL_REG5 (0x24)
 #define CTRL_REG6 (0x25)
 #define STATUS_ADDR (0x27)
-#define OUT_X_ACCEL (0x28)
-#define OUT_Y_ACCEL (0x2A)
-#define OUT_Z_ACCEL (0x2C)
+#define OUT_X_ACCEL_L (0x28)
+#define OUT_X_ACCEL_H (0x29)
+#define OUT_Y_ACCEL_L (0x2A)
+#define OUT_Y_ACCEL_H (0x2B)
+#define OUT_Z_ACCEL_L (0x2C)
+#define OUT_Z_ACCEL_H (0x2D)
 #define FIFO_CTRL_ADDR (0x2E)
 #define FIFO_SRC_ADDR (0x2F)
 
@@ -39,7 +42,7 @@ typedef enum
 
 typedef struct
 {
-  int16_t x, y, z;
+  float x, y, z;
 } acceleration_t;
 
 typedef union
@@ -53,11 +56,5 @@ typedef union
 
 uint8_t InitAccelerometer(void);
 void ReadAcceleration(acceleration_t *accel);
-/*
-void ReadTemperature(uint8_t* temp);
-void ReadStatReg(uint8_t* status);
-void ReadStatusReg(uint8_t* status);
-void ReadOutsReg(uint8_t* status);
-*/
 
 #endif // ACCELEROMETER_H

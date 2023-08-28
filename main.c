@@ -121,60 +121,42 @@ void test_FPU_test(void *p)
 {
   (void)p;
   TickType_t xLastWakeTime;
-  const TickType_t xFrequency = 1000;
+  const TickType_t xFrequency = 100;
+  acceleration_t accels;
 
   /* Initialize the xLastWakeTime variable with the current time. */
   xLastWakeTime = xTaskGetTickCount();
 
   while (1)
   {
-    // TIM_SetCompare1(TIM4, 10500);
-    // TIM_SetCompare2(TIM4, 10500);
-    // TIM_SetCompare3(TIM4, 10500);
-    // TIM_SetCompare4(TIM4, 10500);
-
-    /* Poor man's delay */
-    // for (volatile uint32_t i = 0; i < 100000; ++i);
-
-    /* TODO: Why are the accelerations not changing? */
-    acceleration_t accels;
     ReadAcceleration(&accels);
 
     /* Set LED brightness based on acceleration. */
-    if (accels.x > 0)
+    if (accels.x > 100.0f)
     {
       /* Turn green on proportional to the accel, turn red off */
-      TIM_SetCompare1(TIM4, (uint32_t)(accels.x * 0.32f));
+      TIM_SetCompare1(TIM4, (uint32_t)(accels.x * 10.5f));
       TIM_SetCompare3(TIM4, 0);
     }
-    else if (accels.x < 0)
+    else if (accels.x < -100.0f)
     {
       /* Turn red on proportional to the accel, turn green off */
-      TIM_SetCompare3(TIM4, (uint32_t)(-accels.x * 0.32f));
+      TIM_SetCompare3(TIM4, (uint32_t)(-accels.x * 10.5f));
       TIM_SetCompare1(TIM4, 0);
     }
 
-    if (accels.y > 0)
+    if (accels.y > 100.0f)
     {
       /* Turn orange on proportional to the accel, turn blue off */
-      TIM_SetCompare2(TIM4, (uint32_t)(accels.y * 0.32f));
-      TIM_SetCompare4(TIM4, 0);
+      TIM_SetCompare2(TIM4, 0);
+      TIM_SetCompare4(TIM4, (uint32_t)(accels.y * 10.5f));
     }
-    else if (accels.y < 0)
+    else if (accels.y < -100.0f)
     {
       /* Turn blue on proportional to the accel, turn orange off */
-      TIM_SetCompare4(TIM4, (uint32_t)(-accels.y * 0.32f));
-      TIM_SetCompare2(TIM4, 0);
+      TIM_SetCompare4(TIM4, 0);
+      TIM_SetCompare2(TIM4, (uint32_t)(-accels.y * 10.5f));
     }
-
-    /* Read status reg to clear the flags? */
-    // uint8_t tempreg = 0;
-    // ReadStatusReg(&tempreg);
-
-    /* Read interrupt flags to clear the flags? */
-    // ReadOutsReg(&tempreg);
-
-    //(void)UARTQueueData("a\0");
 
     /* Wait for the next cycle. */
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -327,7 +309,7 @@ void init_peripherals(void)
   /* TODO: Initialize SPI interrupt */
   // SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE | SPI_I2S_IT_RXNE, ENABLE);
 
-  if (InitAccelerometer() != 3U)
+  if (InitAccelerometer() != 1U)
   {
     (void)UARTQueueData("Accelerometer Init failed\r\n\0");
     while (1)
