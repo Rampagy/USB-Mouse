@@ -121,7 +121,7 @@ void test_FPU_test(void *p)
 {
   (void)p;
   TickType_t xLastWakeTime;
-  const TickType_t xFrequency = 100;
+  const TickType_t xFrequency = 1000;
   acceleration_t accels;
 
   /* Initialize the xLastWakeTime variable with the current time. */

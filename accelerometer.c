@@ -4,35 +4,6 @@ static uint8_t SPI1_SendByte(uint8_t byte);
 void SPI1_Write(uint8_t *pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite);
 void SPI1_Read(uint8_t *pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead);
 
-/*
-void ReadOutsReg(uint8_t* status)
-{
-  SPI1_Read(&(*status), OUTS1_ADDR, 1);
-}
-*/
-
-void ReadStatusReg(uint8_t *status)
-{
-  SPI1_Read(status, STATUS_ADDR, 1);
-}
-
-void ReadFIFOStatusReg(uint8_t *status)
-{
-  SPI1_Read(&(*status), FIFO_SRC_ADDR, 1);
-}
-
-void ReadStatReg(uint8_t *status)
-{
-  SPI1_Read(&(*status), STAT_ADDR, 1);
-}
-
-/*
-void ReadTemperature(uint8_t* temp)
-{
-  SPI1_Read(&(*temp), TEMPERATURE_ADDR, 1);
-}
-*/
-
 void ReadAcceleration(acceleration_t *accel)
 {
   accel_data reg;
@@ -45,9 +16,9 @@ void ReadAcceleration(acceleration_t *accel)
   SPI1_Read(&reg.u8[4], OUT_Z_ACCEL_L, 1);
   SPI1_Read(&reg.u8[5], OUT_Z_ACCEL_H, 1);
 
-  accel->x = 0.061f * ((float)reg.s16[0]); //  mg
-  accel->y = 0.061f * ((float)reg.s16[1]); //  mg
-  accel->z = 0.061f * ((float)reg.s16[2]); //  mg
+  accel->x = ((float)reg.s16[0]) / 16.38375f; // mg
+  accel->y = ((float)reg.s16[1]) / 16.38375f; // mg
+  accel->z = ((float)reg.s16[2]) / 16.38375f; // mg
 
   char accel_str[64] = {'\0'};
   (void)sprintf(accel_str, "x: %dmg y: %dmg z: %dmg\r\n", (int16_t)(accel->x), (int16_t)(accel->y), (int16_t)(accel->z));
