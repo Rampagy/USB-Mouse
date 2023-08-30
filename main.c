@@ -20,7 +20,7 @@ int main(void)
 {
   /* Update the MCU and peripheral clock frequencies */
   SystemCoreClockUpdate();
-  // NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
+  NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
   init_peripherals();
 
   // Create a task
@@ -135,13 +135,13 @@ void test_FPU_test(void *p)
     if (accels.x > 100.0f)
     {
       /* Turn green on proportional to the accel, turn red off */
-      TIM_SetCompare1(TIM4, (uint32_t)(accels.x * 10.5f));
+      TIM_SetCompare1(TIM4, (uint32_t)((accels.x - 100.0f) * 10.5f));
       TIM_SetCompare3(TIM4, 0);
     }
     else if (accels.x < -100.0f)
     {
       /* Turn red on proportional to the accel, turn green off */
-      TIM_SetCompare3(TIM4, (uint32_t)(-accels.x * 10.5f));
+      TIM_SetCompare3(TIM4, (uint32_t)((-accels.x - 100.0f) * 10.5f));
       TIM_SetCompare1(TIM4, 0);
     }
 
@@ -149,13 +149,13 @@ void test_FPU_test(void *p)
     {
       /* Turn orange on proportional to the accel, turn blue off */
       TIM_SetCompare2(TIM4, 0);
-      TIM_SetCompare4(TIM4, (uint32_t)(accels.y * 10.5f));
+      TIM_SetCompare4(TIM4, (uint32_t)((accels.y - 100.0f) * 10.5f));
     }
     else if (accels.y < -100.0f)
     {
       /* Turn blue on proportional to the accel, turn orange off */
       TIM_SetCompare4(TIM4, 0);
-      TIM_SetCompare2(TIM4, (uint32_t)(-accels.y * 10.5f));
+      TIM_SetCompare2(TIM4, (uint32_t)((-accels.y - 100.0f) * 10.5f));
     }
 
     /* Wait for the next cycle. */
@@ -173,8 +173,15 @@ void init_peripherals(void)
   TIM_OCInitTypeDef TIM_OCInitStructure;
   USART_InitTypeDef USART_InitStructure;
   NVIC_InitTypeDef NVIC_InitStructure;
+  EXTI_InitTypeDef EXTI_InitStructure;
 
-  // SPI_I2S_DeInit(SPI1);
+  SPI_I2S_DeInit(SPI1);
+  GPIO_DeInit(GPIOA);
+  GPIO_DeInit(GPIOD);
+  GPIO_DeInit(GPIOE);
+  TIM_DeInit(TIM4);
+  USART_DeInit(USART3);
+  EXTI_DeInit();
 
   /* Enable the GPIOA, GPIOD, and GPIOE Clock */
   RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA | RCC_AHB1Periph_GPIOD | RCC_AHB1Periph_GPIOE, ENABLE); // 168 MHz
@@ -184,10 +191,6 @@ void init_peripherals(void)
 
   /* Enable the TIM4, and USART3 clock */
   RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4 | RCC_APB1Periph_USART3, ENABLE); // 42 MHz? or 84 MHz?
-
-  GPIO_DeInit(GPIOA);
-  GPIO_DeInit(GPIOD);
-  GPIO_DeInit(GPIOE);
 
   /* Configure the LED pins */
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15; /* GREEN, ORANGE, RED, BLUE */
@@ -249,17 +252,17 @@ void init_peripherals(void)
   USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
   USART_Init(USART3, &USART_InitStructure);
 
-  USART3->SR = 0x00;
-  USART3->DR = 0x00;
-  USART_ITConfig(USART3, USART_IT_TC, ENABLE);
-  USART_Cmd(USART3, ENABLE); // Enable UART3
-
-  // Enable UART interrupt
+  /* Enable UART interrupt */
   NVIC_InitStructure.NVIC_IRQChannel = USART3_IRQn;
   NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x00;
   NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x00;
   NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&NVIC_InitStructure);
+
+  USART3->SR = 0x00;
+  USART3->DR = 0x00;
+  USART_ITConfig(USART3, USART_IT_TC, ENABLE);
+  USART_Cmd(USART3, ENABLE); // Enable UART3
 
   /* Initialize SCLK, MISO, MOSI module */
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_6 | GPIO_Pin_7; /* SCLK, MISO, MOSI */
@@ -306,9 +309,7 @@ void init_peripherals(void)
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
   GPIO_Init(GPIOE, &GPIO_InitStructure);
 
-  /* TODO: Initialize SPI interrupt */
-  // SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE | SPI_I2S_IT_RXNE, ENABLE);
-
+  /* Initialize the accelerometer in blocking/polling mode */
   if (InitAccelerometer() != 1U)
   {
     (void)UARTQueueData("Accelerometer Init failed\r\n\0");
@@ -337,4 +338,43 @@ void init_peripherals(void)
   {
     (void)UARTQueueData("Accelerometer Init passed\r\n\0");
   }
+
+  /* Disable SPI until interrupts are enabled */
+  SPI_Cmd(SPI1, DISABLE);
+
+  /* Initialize data ready pin (PE1) */
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1; /* INT1 */
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
+  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_Init(GPIOE, &GPIO_InitStructure);
+
+  /* Configure data ready interrupt line */
+  EXTI_InitStructure.EXTI_Line = EXTI_Line1;
+  EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+  EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
+  EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising;
+  EXTI_Init(&EXTI_InitStructure);
+
+  /* Enable data ready interrupt (PE1) */
+  NVIC_InitStructure.NVIC_IRQChannel = EXTI1_IRQn;
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x00;
+  NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x00;
+  NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+  NVIC_Init(&NVIC_InitStructure);
+
+  /* PE1 is connected to EXTI_Line1 */
+  SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOE, EXTI_PinSource1);
+
+  /* Enable SPI interrupt */
+  NVIC_InitStructure.NVIC_IRQChannel = SPI1_IRQn;
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x00;
+  NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0x00;
+  NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+  NVIC_Init(&NVIC_InitStructure);
+
+  /* Re-Enable SPI now that the accelerometer is initialized and interrupt mode is configured */
+  SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE | SPI_I2S_IT_RXNE, ENABLE);
+  SPI_Cmd(SPI1, ENABLE);
 }

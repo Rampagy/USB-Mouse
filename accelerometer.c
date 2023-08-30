@@ -1,8 +1,63 @@
 #include "accelerometer.h"
 
+/* SPI circular buffer variables */
+static uint8_t spi_tx_buffer[SPI_MAX_BUFFER_LEN] = {0};
+static uint16_t spi_tx_buffer_size = 0;
+static uint16_t spi_tx_buffer_head = 0;
+static uint16_t spi_tx_buffer_tail = 0;
+
+static uint8_t spi_rx_buffer[SPI_MAX_BUFFER_LEN] = {0};
+static uint16_t spi_rx_buffer_size = 0;
+static uint16_t spi_rx_buffer_head = 0;
+static uint16_t spi_rx_buffer_tail = 0;
+
 static uint8_t SPI1_SendByte(uint8_t byte);
-void SPI1_Write(uint8_t *pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite);
-void SPI1_Read(uint8_t *pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead);
+static void SPI1_Write(uint8_t *pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite);
+static void SPI1_Read(uint8_t *pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead);
+static void SPIQueueData(uint8_t *buffer, uint8_t buffer_len);
+
+static void SPIQueueData(uint8_t *buffer, uint8_t buffer_len)
+{
+  /* Handles queueing up the SPI addresses to read */
+  // TODO: queue up spi data
+}
+
+void EXTI1_IRQHandler(void)
+{
+  /* Handles the data ready interrupt on PE1
+   *
+   * Enables SPI interrupts to read the acceleration data
+   */
+
+  /* Disable interrupts and other tasks from running during this interrupt. */
+  UBaseType_t uxSavedInterruptStatus = taskENTER_CRITICAL_FROM_ISR();
+
+  /* If pin 1 is currently set the data is ready to read */
+  if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_1))
+  {
+    /* Clear interrupt flag */
+    EXTI_ClearITPendingBit(EXTI_Line1);
+
+    /* Start read the acceleration data from SPI */
+    // TODO: queue spi addresses to read
+  }
+
+  /* Re-enable interrupts and other tasks. */
+  taskEXIT_CRITICAL_FROM_ISR(uxSavedInterruptStatus);
+}
+
+void SPI1_IRQHandler(void)
+{
+  /* Handles the SPI Tx empty interrupt and the Rx not empty interrupt */
+
+  /* Disable interrupts and other tasks from running during this interrupt. */
+  UBaseType_t uxSavedInterruptStatus = taskENTER_CRITICAL_FROM_ISR();
+
+  // TODO: send/read the SPI data
+
+  /* Re-enable interrupts and other tasks. */
+  taskEXIT_CRITICAL_FROM_ISR(uxSavedInterruptStatus);
+}
 
 void ReadAcceleration(acceleration_t *accel)
 {
@@ -110,7 +165,8 @@ uint8_t InitAccelerometer(void)
   tmpreg = 0x00;
   SPI1_Write(&tmpreg, CTRL_REG2, 1);
 
-  tmpreg = 0x00;
+  /* Enable data ready interrupt (active high) on interrupt pin 1 */
+  tmpreg = 0xC4;
   SPI1_Write(&tmpreg, CTRL_REG3, 1);
 
   /* 200 hz bandwidth filter */
