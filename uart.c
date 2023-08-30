@@ -2,19 +2,16 @@
 
 static uint8_t uart_buffer[UART_MAX_BUFFER_LEN] = {0};
 static uint16_t uart_tx_buffer_size = 0;
+static uint16_t uart_tx_buffer_head = 0;
+static uint16_t uart_tx_buffer_tail = 0;
 
 void UARTSendData(void)
 {
-  USART_SendData(USART3, uart_buffer[0]);
+  USART_SendData(USART3, uart_buffer[uart_tx_buffer_head]);
 
-  /* Shift all the bytes up in the queue */
-  for (uint16_t i = 0; i < uart_tx_buffer_size - 1; ++i)
-  {
-    uart_buffer[i] = uart_buffer[i + 1];
-  }
-  uart_buffer[uart_tx_buffer_size - 1] = 0;
-
-  uart_tx_buffer_size--;
+  uart_buffer[uart_tx_buffer_head] = 0;
+  uart_tx_buffer_head = (uart_tx_buffer_head + 1) % UART_MAX_BUFFER_LEN;
+  uart_tx_buffer_size = uart_tx_buffer_head > uart_tx_buffer_tail ? UART_MAX_BUFFER_LEN - uart_tx_buffer_head + uart_tx_buffer_tail + 1 : uart_tx_buffer_tail - uart_tx_buffer_head + 1;
 }
 
 UARTResponseCode_t UARTQueueData(char *buffer)
@@ -43,8 +40,8 @@ UARTResponseCode_t UARTQueueData(char *buffer)
 
     for (uint16_t i = 0; i < buffer_len; ++i)
     {
-      uart_buffer[uart_tx_buffer_size] = *(buffer + i);
-      uart_tx_buffer_size++;
+      uart_tx_buffer_tail = (uart_tx_buffer_tail + 1) % UART_MAX_BUFFER_LEN;
+      uart_buffer[uart_tx_buffer_tail] = *(buffer + i);
     }
 
     /* Check if transmit mode needs to be enabled */
