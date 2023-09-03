@@ -3,13 +3,13 @@
 /* SPI circular buffer variables */
 static uint8_t spi_tx_buffer[SPI_MAX_BUFFER_LEN] = {0};
 static uint16_t spi_tx_buffer_size = 0;
-static uint16_t spi_tx_buffer_head = 0;
-static uint16_t spi_tx_buffer_tail = 0;
+static uint16_t spi_tx_buffer_head = 0; // head index is inclusive
+static uint16_t spi_tx_buffer_tail = 0; // tail index is exclusive
 
 static uint8_t spi_rx_buffer[SPI_MAX_BUFFER_LEN] = {0};
 static uint16_t spi_rx_buffer_size = 0;
-static uint16_t spi_rx_buffer_head = 0;
-static uint16_t spi_rx_buffer_tail = 0;
+static uint16_t spi_rx_buffer_head = 0; // head index is inclusive
+static uint16_t spi_rx_buffer_tail = 0; // tail index is exclusive
 
 static uint8_t SPI1_SendByte(uint8_t byte);
 static void SPI1_Write(uint8_t *pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite);
@@ -64,12 +64,7 @@ void ReadAcceleration(acceleration_t *accel)
   accel_data reg;
 
   /* Read 6 bytes: x acceleration, y acceleration, and z acceleration. */
-  SPI1_Read(&reg.u8[0], OUT_X_ACCEL_L, 1);
-  SPI1_Read(&reg.u8[1], OUT_X_ACCEL_H, 1);
-  SPI1_Read(&reg.u8[2], OUT_Y_ACCEL_L, 1);
-  SPI1_Read(&reg.u8[3], OUT_Y_ACCEL_H, 1);
-  SPI1_Read(&reg.u8[4], OUT_Z_ACCEL_L, 1);
-  SPI1_Read(&reg.u8[5], OUT_Z_ACCEL_H, 1);
+  SPI1_Read(&reg.u8[0], OUT_X_ACCEL_L, 6);
 
   accel->x = ((float)reg.s16[0]) / 16.38375f; // mg
   accel->y = ((float)reg.s16[1]) / 16.38375f; // mg
@@ -222,9 +217,6 @@ void SPI1_Write(uint8_t *pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite)
   /* Set chip select Low at the start of the transmission */
   GPIO_ResetBits(GPIOE, GPIO_Pin_3);
 
-  for (volatile uint32_t i = 0; i < 1000; ++i)
-    ;
-
   /* Send the Address of the indexed register */
   (void)SPI1_SendByte(WriteAddr);
 
@@ -236,29 +228,16 @@ void SPI1_Write(uint8_t *pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite)
     pBuffer++;
   }
 
-  for (volatile uint32_t i = 0; i < 1000; ++i)
-    ;
-
   /* Set chip select High at the end of the transmission */
   GPIO_SetBits(GPIOE, GPIO_Pin_3);
 }
 
 void SPI1_Read(uint8_t *pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead)
 {
-  if (NumByteToRead > 0x01)
-  {
-    ReadAddr |= (uint8_t)(LIS3DSH_READ_BIT | LIS3DSH_MULTI_BYTE);
-  }
-  else
-  {
-    ReadAddr |= (uint8_t)LIS3DSH_READ_BIT;
-  }
+  ReadAddr |= (uint8_t)LIS3DSH_READ_BIT;
 
   /* Set chip select Low at the start of the transmission */
   GPIO_ResetBits(GPIOE, GPIO_Pin_3);
-
-  for (volatile uint32_t i = 0; i < 1000; ++i)
-    ;
 
   /* Send the Address of the indexed register */
   (void)SPI1_SendByte(ReadAddr);
@@ -266,14 +245,21 @@ void SPI1_Read(uint8_t *pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead)
   /* Receive the data that will be read from the device (MSB First) */
   while (NumByteToRead > 0x00)
   {
-    /* Send dummy byte (0x00) to generate the SPI clock to LIS302DL (Slave device) */
-    *pBuffer = SPI1_SendByte(0x00);
-    NumByteToRead--;
-    pBuffer++;
-  }
+    if (NumByteToRead > 0x01)
+    {
+      /* Set the next address to read */
+      ++ReadAddr;
+    }
+    else
+    {
+      /* Send dummy byte (0x00) to generate the SPI clock to LIS302DL (Slave device) */
+      ReadAddr = 0x00;
+    }
 
-  for (volatile uint32_t i = 0; i < 1000; ++i)
-    ;
+    *pBuffer = SPI1_SendByte(ReadAddr);
+    --NumByteToRead;
+    ++pBuffer;
+  }
 
   /* Set chip select High at the end of the transmission */
   GPIO_SetBits(GPIOE, GPIO_Pin_3);

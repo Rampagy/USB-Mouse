@@ -123,7 +123,7 @@ void test_FPU_test(void *p)
   TickType_t xLastWakeTime;
   const TickType_t xFrequency = 10;
   acceleration_t accels;
-  uint8_t taskCount = 0;
+  uint8_t taskCount = 1;
 
   /* Initialize the xLastWakeTime variable with the current time. */
   xLastWakeTime = xTaskGetTickCount();
@@ -159,13 +159,13 @@ void test_FPU_test(void *p)
       TIM_SetCompare2(TIM4, (uint32_t)((-accels.y - 100.0f) * 10.5f));
     }
 
-    /* Send accel data every 200ms */
-    if (taskCount * xFrequency >= 200)
+    /* Send accel data every 100ms */
+    if ((uint32_t)taskCount * xFrequency >= 100U)
     {
       char accel_str[64] = {'\0'};
       (void)sprintf(accel_str, "x: %dmg y: %dmg z: %dmg\r\n", (int16_t)(accels.x), (int16_t)(accels.y), (int16_t)(accels.z));
       UARTResponseCode_t response = UARTQueueData(accel_str);
-      taskCount = 0;
+      taskCount = 1;
 
       if (response != UART_TX_NO_ERROR)
       {
