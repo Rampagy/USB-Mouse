@@ -121,8 +121,9 @@ void test_FPU_test(void *p)
 {
   (void)p;
   TickType_t xLastWakeTime;
-  const TickType_t xFrequency = 1000;
+  const TickType_t xFrequency = 10;
   acceleration_t accels;
+  uint8_t taskCount = 0;
 
   /* Initialize the xLastWakeTime variable with the current time. */
   xLastWakeTime = xTaskGetTickCount();
@@ -156,6 +157,25 @@ void test_FPU_test(void *p)
       /* Turn blue on proportional to the accel, turn orange off */
       TIM_SetCompare4(TIM4, 0);
       TIM_SetCompare2(TIM4, (uint32_t)((-accels.y - 100.0f) * 10.5f));
+    }
+
+    /* Send accel data every 200ms */
+    if (taskCount * xFrequency >= 200)
+    {
+      char accel_str[64] = {'\0'};
+      (void)sprintf(accel_str, "x: %dmg y: %dmg z: %dmg\r\n", (int16_t)(accels.x), (int16_t)(accels.y), (int16_t)(accels.z));
+      UARTResponseCode_t response = UARTQueueData(accel_str);
+      taskCount = 0;
+
+      if (response != UART_TX_NO_ERROR)
+      {
+        char response_code[4] = {'f', '\r', '\n', '\0'};
+        (void)UARTQueueData(response_code);
+      }
+    }
+    else
+    {
+      ++taskCount;
     }
 
     /* Wait for the next cycle. */
@@ -339,6 +359,8 @@ void init_peripherals(void)
     (void)UARTQueueData("Accelerometer Init passed\r\n\0");
   }
 
+#if 0
+
   /* Disable SPI until interrupts are enabled */
   SPI_Cmd(SPI1, DISABLE);
 
@@ -377,4 +399,5 @@ void init_peripherals(void)
   /* Re-Enable SPI now that the accelerometer is initialized and interrupt mode is configured */
   SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE | SPI_I2S_IT_RXNE, ENABLE);
   SPI_Cmd(SPI1, ENABLE);
+#endif
 }

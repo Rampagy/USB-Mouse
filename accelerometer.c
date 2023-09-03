@@ -74,10 +74,6 @@ void ReadAcceleration(acceleration_t *accel)
   accel->x = ((float)reg.s16[0]) / 16.38375f; // mg
   accel->y = ((float)reg.s16[1]) / 16.38375f; // mg
   accel->z = ((float)reg.s16[2]) / 16.38375f; // mg
-
-  char accel_str[64] = {'\0'};
-  (void)sprintf(accel_str, "x: %dmg y: %dmg z: %dmg\r\n", (int16_t)(accel->x), (int16_t)(accel->y), (int16_t)(accel->z));
-  UARTQueueData(accel_str);
 }
 
 uint8_t self_test(void)
