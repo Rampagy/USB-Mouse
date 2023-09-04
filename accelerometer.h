@@ -37,7 +37,7 @@
 #define FIFO_CTRL_ADDR (0x2E)
 #define FIFO_SRC_ADDR (0x2F)
 
-#define MULTIBYTE_ACCEL_READ_LEN (6)
+#define MULTIBYTE_ACCEL_READ_LEN (6U)
 
 /* SPI send data return code. */
 typedef enum
@@ -72,8 +72,9 @@ typedef union
 } accel_data;
 
 uint8_t InitAccelerometer(void);
-void EXTI1_IRQHandler(void);
+void EXTI0_IRQHandler(void);
 void SPI1_IRQHandler(void);
+void SPI1_Read(uint8_t *pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead);
 
 /* Retreives acceleration data via interrupts */
 void GetAccelerationData(acceleration_t *accel);
