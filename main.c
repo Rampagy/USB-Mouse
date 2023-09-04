@@ -386,9 +386,6 @@ void init_peripherals(void)
   NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&NVIC_InitStructure);
 
-  /* PE1 is connected to EXTI_Line1 */
-  SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOE, EXTI_PinSource1);
-
   /* Enable SPI interrupt */
   NVIC_InitStructure.NVIC_IRQChannel = SPI1_IRQn;
   NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x00;
@@ -399,5 +396,14 @@ void init_peripherals(void)
   /* Re-Enable SPI now that the accelerometer is initialized and interrupt mode is configured */
   SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE | SPI_I2S_IT_RXNE, ENABLE);
   SPI_Cmd(SPI1, ENABLE);
+
+  /* Connect PE1 to the EXTI line 1 */
+  SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOE, EXTI_PinSource1);
+
+  /* If the pin is already set (missed the rising edge), generate an interrupt */
+  if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_1) == Bit_SET)
+  {
+    EXTI_GenerateSWInterrupt(EXTI_PinSource1);
+  }
 #endif
 }

@@ -6,7 +6,7 @@
 #include "stm32f4xx.h"
 #include "uart.h"
 
-/* SPI buffer size */
+/* SPI buffer size (Rx and Tx are the same size) */
 #define SPI_MAX_BUFFER_LEN (16)
 
 /* LIS3DSH Commands */
@@ -38,6 +38,17 @@
 #define FIFO_SRC_ADDR (0x2F)
 
 #define MULTIBYTE_ACCEL_READ_LEN (6)
+
+/* SPI send data return code. */
+typedef enum
+{
+  SPI_TX_NO_ERROR,
+  /* Tx buffer would be full if the data was added OR
+   * tx buffer is already full. Try again later.
+   * Can also increase TX buffer size.
+   */
+  SPI_TX_BUFFER_FULL,
+} SPIResponseCode_t;
 
 typedef enum
 {

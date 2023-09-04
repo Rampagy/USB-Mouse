@@ -1,5 +1,7 @@
 #include "accelerometer.h"
 
+static accel_data acceleration_data_buffer = {0U};
+
 /* SPI circular buffer variables */
 static uint8_t spi_tx_buffer[SPI_MAX_BUFFER_LEN] = {0};
 static uint16_t spi_tx_buffer_size = 0;
@@ -14,32 +16,80 @@ static uint16_t spi_rx_buffer_tail = 0; // tail index is exclusive
 static uint8_t SPI1_SendByte(uint8_t byte);
 static void SPI1_Write(uint8_t *pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite);
 static void SPI1_Read(uint8_t *pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead);
-static void SPIQueueData(uint8_t *buffer, uint8_t buffer_len);
+static SPIResponseCode_t SPIQueueData(uint8_t *buffer, const uint8_t buffer_len, const uint8_t from_ISR);
 
-static void SPIQueueData(uint8_t *buffer, uint8_t buffer_len)
+static void SPISendQueuedData(void)
 {
-  /* Handles queueing up the SPI addresses to read */
-  // TODO: queue up spi data
+  SPI_I2S_SendData(SPI1, spi_tx_buffer[spi_tx_buffer_head]);
+
+  spi_tx_buffer[spi_tx_buffer_head] = 0;
+  spi_tx_buffer_head = (spi_tx_buffer_head + 1) % UART_MAX_BUFFER_LEN;
+  spi_tx_buffer_size = spi_tx_buffer_head > spi_tx_buffer_tail ? UART_MAX_BUFFER_LEN - spi_tx_buffer_head + spi_tx_buffer_tail : spi_tx_buffer_tail - spi_tx_buffer_head;
+}
+
+static SPIResponseCode_t SPIQueueData(uint8_t *buffer, const uint8_t buffer_len, const uint8_t from_ISR)
+{
+  /* Queues up the SPI addresses to read */
+  SPIResponseCode_t return_code = SPI_TX_NO_ERROR;
+
+  if (spi_tx_buffer_size + buffer_len > UART_MAX_BUFFER_LEN)
+  {
+    return_code = SPI_TX_BUFFER_FULL;
+  }
+  else
+  {
+    if (from_ISR == 0U)
+    {
+      /* Only block if queueing from something other than an interrupt
+       *   If called from an interrupt the interrupt should already be blocking
+       */
+      taskENTER_CRITICAL();
+    }
+
+    /* Add the data to the queue */
+    for (uint16_t i = 0; i < buffer_len; ++i)
+    {
+      spi_tx_buffer[spi_tx_buffer_tail] = (*(buffer + i)) | LIS3DSH_READ_BIT;
+      spi_tx_buffer_tail = (spi_tx_buffer_tail + 1) % UART_MAX_BUFFER_LEN;
+    }
+
+    /* Check if SPI is already transmitting (Bit_SET means it is NOT transmitting) */
+    if (GPIO_ReadOutputDataBit(GPIOE, GPIO_Pin_3) == Bit_SET)
+    {
+      /* Set chip select Low at the start of the transmission */
+      GPIO_ResetBits(GPIOE, GPIO_Pin_3);
+
+      /* Start the SPI transfers */
+      SPISendQueuedData();
+    }
+
+    if (from_ISR == 0U)
+    {
+      taskEXIT_CRITICAL();
+    }
+  }
+
+  return return_code;
 }
 
 void EXTI1_IRQHandler(void)
 {
   /* Handles the data ready interrupt on PE1
-   *
-   * Enables SPI interrupts to read the acceleration data
+   *   Enables SPI interrupts to read the acceleration data
    */
 
   /* Disable interrupts and other tasks from running during this interrupt. */
   UBaseType_t uxSavedInterruptStatus = taskENTER_CRITICAL_FROM_ISR();
 
-  /* If pin 1 is currently set the data is ready to read */
-  if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_1))
+  /* If pin 1 is currently set, the data is ready to read */
+  if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_1) == Bit_SET)
   {
     /* Clear interrupt flag */
     EXTI_ClearITPendingBit(EXTI_Line1);
 
-    /* Start read the acceleration data from SPI */
-    // TODO: queue spi addresses to read
+    /* Start reading the acceleration data from SPI */
+    uint8_t bytes[MULTIBYTE_ACCEL_READ_LEN] = {OUT_X_ACCEL_L, OUT_X_ACCEL_H, OUT_Y_ACCEL_L, OUT_Y_ACCEL_H, OUT_Z_ACCEL_L, OUT_Z_ACCEL_H};
+    (void)SPIQueueData(&bytes[0], MULTIBYTE_ACCEL_READ_LEN, 1U);
   }
 
   /* Re-enable interrupts and other tasks. */
@@ -49,14 +99,69 @@ void EXTI1_IRQHandler(void)
 void SPI1_IRQHandler(void)
 {
   /* Handles the SPI Tx empty interrupt and the Rx not empty interrupt */
+  static uint8_t generate_one_more_more_dummy_byte = 0;
 
   /* Disable interrupts and other tasks from running during this interrupt. */
   UBaseType_t uxSavedInterruptStatus = taskENTER_CRITICAL_FROM_ISR();
 
-  // TODO: send/read the SPI data
+  /* Rx register is not empty (data has been received) */
+  if (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_IT_RXNE) == SET)
+  {
+    /* Read the data and add it to the buffer */
+    spi_rx_buffer[spi_rx_buffer_tail] = (uint8_t)SPI_I2S_ReceiveData(SPI1);
+  }
+
+  /* Tx register is empty (data needs to be sent) */
+  if (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_IT_TXE) == SET)
+  {
+    if (spi_tx_buffer_size > 0)
+    {
+      /* Send the next queued data */
+      SPISendQueuedData();
+      generate_one_more_more_dummy_byte = 1;
+    }
+    /* Send dummy data so one more bytes worth of clock is sent for the Rx byte */
+    else if (generate_one_more_more_dummy_byte == 1)
+    {
+      generate_one_more_more_dummy_byte = 0;
+
+      /* Send a dummy byte through the SPI peripheral */
+      SPI_I2S_SendData(SPI1, 0x00);
+    }
+    /* There are no more bytes to send (and dummy byte is already sent) */
+    else
+    {
+      /* Set chip select High at the end of the transmission */
+      GPIO_SetBits(GPIOE, GPIO_Pin_3);
+
+      /* Copy the received data into an acceleration buffer */
+      for (uint16_t i = 0; i < spi_rx_buffer_size; ++i)
+      {
+        uint16_t idx = (spi_rx_buffer_head + i) % SPI_MAX_BUFFER_LEN;
+        acceleration_data_buffer.u8[i] = spi_rx_buffer[idx];
+        spi_rx_buffer[idx] = 0;
+      }
+
+      /* Reset the head index to 1 below the tail */
+      spi_rx_buffer_head = spi_rx_buffer_tail > 0U ? spi_rx_buffer_tail - 1 : SPI_MAX_BUFFER_LEN - 1;
+    }
+  }
 
   /* Re-enable interrupts and other tasks. */
   taskEXIT_CRITICAL_FROM_ISR(uxSavedInterruptStatus);
+}
+
+void InterpretAccelData(accel_data *reg, acceleration_t *accel)
+{
+  /* Takes reg 6 bytes in from reg and returns them as floats
+   *   in accel
+   * The return data is in units of milli-g's
+   *   -1000mg is equivalent to -9.81 m/s/s
+   */
+
+  accel->x = ((float)reg->s16[0]) / 16.38375f; // mg
+  accel->y = ((float)reg->s16[1]) / 16.38375f; // mg
+  accel->z = ((float)reg->s16[2]) / 16.38375f; // mg
 }
 
 void ReadAcceleration(acceleration_t *accel)
@@ -66,9 +171,10 @@ void ReadAcceleration(acceleration_t *accel)
   /* Read 6 bytes: x acceleration, y acceleration, and z acceleration. */
   SPI1_Read(&reg.u8[0], OUT_X_ACCEL_L, 6);
 
-  accel->x = ((float)reg.s16[0]) / 16.38375f; // mg
-  accel->y = ((float)reg.s16[1]) / 16.38375f; // mg
-  accel->z = ((float)reg.s16[2]) / 16.38375f; // mg
+  //  accel->x = ((float)reg.s16[0]) / 16.38375f; // mg
+  //  accel->y = ((float)reg.s16[1]) / 16.38375f; // mg
+  //  accel->z = ((float)reg.s16[2]) / 16.38375f; // mg
+  InterpretAccelData(&reg, accel);
 }
 
 uint8_t self_test(void)
@@ -217,6 +323,9 @@ void SPI1_Write(uint8_t *pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite)
   /* Set chip select Low at the start of the transmission */
   GPIO_ResetBits(GPIOE, GPIO_Pin_3);
 
+  for (volatile uint32_t i = 0; i < 1000; ++i)
+    ;
+
   /* Send the Address of the indexed register */
   (void)SPI1_SendByte(WriteAddr);
 
@@ -228,6 +337,9 @@ void SPI1_Write(uint8_t *pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite)
     pBuffer++;
   }
 
+  for (volatile uint32_t i = 0; i < 1000; ++i)
+    ;
+
   /* Set chip select High at the end of the transmission */
   GPIO_SetBits(GPIOE, GPIO_Pin_3);
 }
@@ -238,6 +350,9 @@ void SPI1_Read(uint8_t *pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead)
 
   /* Set chip select Low at the start of the transmission */
   GPIO_ResetBits(GPIOE, GPIO_Pin_3);
+
+  for (volatile uint32_t i = 0; i < 1000; ++i)
+    ;
 
   /* Send the Address of the indexed register */
   (void)SPI1_SendByte(ReadAddr);
@@ -260,6 +375,9 @@ void SPI1_Read(uint8_t *pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead)
     --NumByteToRead;
     ++pBuffer;
   }
+
+  for (volatile uint32_t i = 0; i < 1000; ++i)
+    ;
 
   /* Set chip select High at the end of the transmission */
   GPIO_SetBits(GPIOE, GPIO_Pin_3);

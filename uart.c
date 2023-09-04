@@ -5,7 +5,7 @@ static uint16_t uart_tx_buffer_size = 0;
 static uint16_t uart_tx_buffer_head = 0; // head index is inclusive
 static uint16_t uart_tx_buffer_tail = 0; // tail index is exclusive
 
-void UARTSendData(void)
+static void UARTSendData(void)
 {
   USART_SendData(USART3, uart_buffer[uart_tx_buffer_head]);
 
@@ -72,7 +72,6 @@ void USART3_IRQHandler(void)
 
   if (USART_GetFlagStatus(USART3, USART_FLAG_TC))
   {
-    /* If the current index is less than the size of the buffer send the byte */
     if (uart_tx_buffer_size > 0)
     {
       /* Add data to the data register */
