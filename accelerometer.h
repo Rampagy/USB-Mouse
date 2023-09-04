@@ -72,8 +72,13 @@ typedef union
 } accel_data;
 
 uint8_t InitAccelerometer(void);
-void ReadAcceleration(acceleration_t *accel);
 void EXTI1_IRQHandler(void);
 void SPI1_IRQHandler(void);
+
+/* Retreives acceleration data via interrupts */
+void GetAccelerationData(acceleration_t *accel);
+
+/* Retreives acceleration data via polling/blocking */
+void ReadAcceleration(acceleration_t *accel);
 
 #endif // ACCELEROMETER_H

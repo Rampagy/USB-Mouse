@@ -123,14 +123,14 @@ void test_FPU_test(void *p)
   TickType_t xLastWakeTime;
   const TickType_t xFrequency = 5;
   acceleration_t accels;
-  uint8_t taskCount = 1;
+  uint32_t taskCount = 1;
 
   /* Initialize the xLastWakeTime variable with the current time. */
   xLastWakeTime = xTaskGetTickCount();
 
   while (1)
   {
-    ReadAcceleration(&accels);
+    GetAccelerationData(&accels);
 
     /* Set LED brightness based on acceleration. */
     if (accels.x > 100.0f)
@@ -160,7 +160,7 @@ void test_FPU_test(void *p)
     }
 
     /* Send accel data every 100ms */
-    if ((uint32_t)taskCount * xFrequency >= 100U)
+    if ((uint32_t)taskCount * (uint32_t)xFrequency >= (uint32_t)2000)
     {
       char accel_str[64] = {'\0'};
       (void)sprintf(accel_str, "x: %dmg y: %dmg z: %dmg\r\n", (int16_t)(accels.x), (int16_t)(accels.y), (int16_t)(accels.z));
@@ -207,7 +207,7 @@ void init_peripherals(void)
   RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA | RCC_AHB1Periph_GPIOD | RCC_AHB1Periph_GPIOE, ENABLE); // 168 MHz
 
   /* Enable the SPI1 Clock */
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1, ENABLE); // 84 MHz
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1 | RCC_APB2Periph_SYSCFG, ENABLE); // 84 MHz
 
   /* Enable the TIM4, and USART3 clock */
   RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4 | RCC_APB1Periph_USART3, ENABLE); // 42 MHz? or 84 MHz?
@@ -321,6 +321,7 @@ void init_peripherals(void)
   GPIO_SetBits(GPIOE, GPIO_Pin_3);
   SPI_Cmd(SPI1, ENABLE);
 
+#if 0
   /* Initialize SPI interrupt pins module */
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1; /* INT2, INT1 */
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
@@ -328,6 +329,7 @@ void init_peripherals(void)
   GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
   GPIO_Init(GPIOE, &GPIO_InitStructure);
+#endif
 
   /* Initialize the accelerometer in blocking/polling mode */
   if (InitAccelerometer() != 1U)
@@ -359,7 +361,7 @@ void init_peripherals(void)
     (void)UARTQueueData("Accelerometer Init passed\r\n\0");
   }
 
-#if 0
+#if 1
 
   /* Disable SPI until interrupts are enabled */
   SPI_Cmd(SPI1, DISABLE);
@@ -394,7 +396,6 @@ void init_peripherals(void)
   NVIC_Init(&NVIC_InitStructure);
 
   /* Re-Enable SPI now that the accelerometer is initialized and interrupt mode is configured */
-  SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE | SPI_I2S_IT_RXNE, ENABLE);
   SPI_Cmd(SPI1, ENABLE);
 
   /* Connect PE1 to the EXTI line 1 */
@@ -403,7 +404,10 @@ void init_peripherals(void)
   /* If the pin is already set (missed the rising edge), generate an interrupt */
   if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_1) == Bit_SET)
   {
+    (void)UARTQueueData("EXTI\r\n\0");
     EXTI_GenerateSWInterrupt(EXTI_PinSource1);
   }
+
+  (void)UARTQueueData("SPI Interrupts enabled\r\n\0");
 #endif
 }

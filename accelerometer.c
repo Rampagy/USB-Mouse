@@ -17,9 +17,20 @@ static uint8_t SPI1_SendByte(uint8_t byte);
 static void SPI1_Write(uint8_t *pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite);
 static void SPI1_Read(uint8_t *pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead);
 static SPIResponseCode_t SPIQueueData(uint8_t *buffer, const uint8_t buffer_len, const uint8_t from_ISR);
+static void InterpretAccelData(accel_data *reg, acceleration_t *accel);
+
+void GetAccelerationData(acceleration_t *accel)
+{
+  /* Returns the acceleration data of the x,y, and z axis
+   *   with units of milli-g
+   *   -1000mg is equivalent to -9.81 m/s/s
+   */
+  InterpretAccelData(&acceleration_data_buffer, accel);
+}
 
 static void SPISendQueuedData(void)
 {
+  (void)UARTQueueData("SPISQD\r\n\0");
   SPI_I2S_SendData(SPI1, spi_tx_buffer[spi_tx_buffer_head]);
 
   spi_tx_buffer[spi_tx_buffer_head] = 0;
@@ -29,6 +40,7 @@ static void SPISendQueuedData(void)
 
 static SPIResponseCode_t SPIQueueData(uint8_t *buffer, const uint8_t buffer_len, const uint8_t from_ISR)
 {
+  (void)UARTQueueData("SPIQD\r\n\0");
   /* Queues up the SPI addresses to read */
   SPIResponseCode_t return_code = SPI_TX_NO_ERROR;
 
@@ -59,6 +71,9 @@ static SPIResponseCode_t SPIQueueData(uint8_t *buffer, const uint8_t buffer_len,
       /* Set chip select Low at the start of the transmission */
       GPIO_ResetBits(GPIOE, GPIO_Pin_3);
 
+      /* Enable the TXE and RXNE interrupts */
+      SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE | SPI_I2S_IT_RXNE, ENABLE);
+
       /* Start the SPI transfers */
       SPISendQueuedData();
     }
@@ -77,6 +92,8 @@ void EXTI1_IRQHandler(void)
   /* Handles the data ready interrupt on PE1
    *   Enables SPI interrupts to read the acceleration data
    */
+
+  (void)UARTQueueData("DR\r\n\0");
 
   /* Disable interrupts and other tasks from running during this interrupt. */
   UBaseType_t uxSavedInterruptStatus = taskENTER_CRITICAL_FROM_ISR();
@@ -104,15 +121,17 @@ void SPI1_IRQHandler(void)
   /* Disable interrupts and other tasks from running during this interrupt. */
   UBaseType_t uxSavedInterruptStatus = taskENTER_CRITICAL_FROM_ISR();
 
+  (void)UARTQueueData("SPIIRQ\r\n\0");
+
   /* Rx register is not empty (data has been received) */
-  if (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_IT_RXNE) == SET)
+  if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_RXNE) == SET)
   {
     /* Read the data and add it to the buffer */
     spi_rx_buffer[spi_rx_buffer_tail] = (uint8_t)SPI_I2S_ReceiveData(SPI1);
   }
 
   /* Tx register is empty (data needs to be sent) */
-  if (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_IT_TXE) == SET)
+  if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_TXE) == SET)
   {
     if (spi_tx_buffer_size > 0)
     {
@@ -133,6 +152,9 @@ void SPI1_IRQHandler(void)
     {
       /* Set chip select High at the end of the transmission */
       GPIO_SetBits(GPIOE, GPIO_Pin_3);
+
+      /* Disable TXE and RXNE interrupts */
+      SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE | SPI_I2S_IT_RXNE, ENABLE);
 
       /* Copy the received data into an acceleration buffer */
       for (uint16_t i = 0; i < spi_rx_buffer_size; ++i)
@@ -171,9 +193,6 @@ void ReadAcceleration(acceleration_t *accel)
   /* Read 6 bytes: x acceleration, y acceleration, and z acceleration. */
   SPI1_Read(&reg.u8[0], OUT_X_ACCEL_L, 6);
 
-  //  accel->x = ((float)reg.s16[0]) / 16.38375f; // mg
-  //  accel->y = ((float)reg.s16[1]) / 16.38375f; // mg
-  //  accel->z = ((float)reg.s16[2]) / 16.38375f; // mg
   InterpretAccelData(&reg, accel);
 }
 
