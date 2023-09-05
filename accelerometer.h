@@ -39,6 +39,10 @@
 
 #define MULTIBYTE_ACCEL_READ_LEN (6U)
 
+extern uint16_t global_spi_rx_buffer_size;
+extern uint16_t global_spi_rx_buffer_head;
+extern uint16_t global_spi_rx_buffer_tail;
+
 /* SPI send data return code. */
 typedef enum
 {

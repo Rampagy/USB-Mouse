@@ -191,17 +191,23 @@ void test_FPU_test(void *p)
     }
 
     /* Send accel data every 100ms */
-    if ((uint32_t)taskCount * (uint32_t)xFrequency >= (uint32_t)2000)
+    if ((uint32_t)taskCount * (uint32_t)xFrequency >= (uint32_t)5000)
     {
+      {
+        char sz_str[36] = {'\0'};
+        (void)sprintf(sz_str, "sz: %d head: %d tail: %d\r\n", global_spi_rx_buffer_size, global_spi_rx_buffer_head, global_spi_rx_buffer_tail);
+        (void)UARTQueueData(sz_str, 0U);
+      }
+
       char accel_str[64] = {'\0'};
       (void)sprintf(accel_str, "x: %dmg y: %dmg z: %dmg\r\n", (int16_t)(accels.x), (int16_t)(accels.y), (int16_t)(accels.z));
-      UARTResponseCode_t response = UARTQueueData(accel_str);
+      UARTResponseCode_t response = UARTQueueData(accel_str, 0U);
       taskCount = 1;
 
       if (response != UART_TX_NO_ERROR)
       {
         char response_code[4] = {'f', '\r', '\n', '\0'};
-        (void)UARTQueueData(response_code);
+        (void)UARTQueueData(response_code, 0U);
       }
     }
     else
@@ -320,7 +326,7 @@ void init_peripherals(void)
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
   GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
   GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_25MHz;
   GPIO_Init(GPIOA, &GPIO_InitStructure);
 
   /* Connect SPI pins to AF (alternate function) */
@@ -335,7 +341,7 @@ void init_peripherals(void)
   SPI_InitStructure.SPI_CPOL = SPI_CPOL_High;
   SPI_InitStructure.SPI_CPHA = SPI_CPHA_2Edge;
   SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;                           /* software management of slave select (chip select) */
-  SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_16; /* 84 MHz / 16 = 5.25 MHz */
+  SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_32; /* 84 MHz / 16 = 5.25 MHz */
   SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
   SPI_InitStructure.SPI_CRCPolynomial = 7;
   SPI_Init(SPI1, &SPI_InitStructure);
@@ -365,7 +371,7 @@ void init_peripherals(void)
   /* Initialize the accelerometer in blocking/polling mode */
   if (InitAccelerometer() != 1U)
   {
-    (void)UARTQueueData("Accelerometer Init failed\r\n\0");
+    (void)UARTQueueData("Accelerometer Init failed\r\n\0", 0U);
     while (1)
     {
       TIM_SetCompare1(TIM4, 10500);
@@ -389,12 +395,13 @@ void init_peripherals(void)
   }
   else
   {
-    (void)UARTQueueData("Accelerometer Init passed\r\n\0");
+    (void)UARTQueueData("Accelerometer Init passed\r\n\0", 0U);
   }
 
 #if 1
   /* Disable SPI until interrupts are enabled */
   SPI_Cmd(SPI1, DISABLE);
+  SPI_SSOutputCmd(SPI1, ENABLE);
 
   /* Initialize data ready pin (PE0) */
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0; /* INT1 */
@@ -411,9 +418,6 @@ void init_peripherals(void)
   EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising;
   EXTI_Init(&EXTI_InitStructure);
 
-  /* Connect PE1 to the EXTI line 1 */
-  SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOE, EXTI_PinSource0);
-
   /* Enable data ready interrupt (PE1) */
   NVIC_InitStructure.NVIC_IRQChannel = EXTI0_IRQn;
   NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0x00;
@@ -428,14 +432,14 @@ void init_peripherals(void)
   NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&NVIC_InitStructure);
 
-  /* leave chip select low forever */
-  GPIO_ResetBits(GPIOE, GPIO_Pin_3);
-
-  for (uint32_t i = 0; i < 1000; ++i)
+  for (uint32_t i = 0; i < 1000000; ++i)
     ;
 
-  /* Re-Enable SPI now that the accelerometer is initialized and interrupt mode is configured */
+  /* Re-enable SPI now that the accelerometer is initialized and interrupt mode is configured */
   SPI_Cmd(SPI1, ENABLE);
+
+  /* Connect PE0 to the EXTI line 0 */
+  SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOE, EXTI_PinSource0);
 
   /* If the pin is already set (missed the rising edge), generate an interrupt */
   // if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_0) == Bit_SET)
@@ -448,6 +452,6 @@ void init_peripherals(void)
   //   (void)UARTQueueData("NEXTI\r\n\0");
   // }
 
-  //(void)UARTQueueData("SPI Interrupts enabled\r\n\0");
+  (void)UARTQueueData("SPI Interrupts enabled\r\n\0", 0U);
 #endif
 }

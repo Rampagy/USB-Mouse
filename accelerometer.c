@@ -12,6 +12,9 @@ static uint8_t spi_rx_buffer[SPI_MAX_BUFFER_LEN] = {0};
 static uint16_t spi_rx_buffer_size = 0;
 static uint16_t spi_rx_buffer_head = 0; // head index is inclusive
 static uint16_t spi_rx_buffer_tail = 0; // tail index is exclusive
+uint16_t global_spi_rx_buffer_size = 0;
+uint16_t global_spi_rx_buffer_head = 0; // head index is inclusive
+uint16_t global_spi_rx_buffer_tail = 0; // tail index is exclusive
 
 static uint8_t SPI1_SendByte(uint8_t byte);
 static void SPI1_Write(uint8_t *pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite);
@@ -53,7 +56,8 @@ static SPIResponseCode_t SPIQueueData(uint8_t *buffer, const uint8_t buffer_len)
     /* Add the data to the queue */
     for (uint16_t i = 0; i < buffer_len; ++i)
     {
-      spi_tx_buffer[spi_tx_buffer_tail] = (*(buffer + i)) | LIS3DSH_READ_BIT;
+      spi_tx_buffer[spi_tx_buffer_tail] = (*(buffer + i));
+      spi_tx_buffer[spi_tx_buffer_tail] = (i < buffer_len - 1) ? (spi_tx_buffer[spi_tx_buffer_tail] | LIS3DSH_READ_BIT) : spi_tx_buffer[spi_tx_buffer_tail];
       spi_tx_buffer_tail = (spi_tx_buffer_tail + 1) % UART_MAX_BUFFER_LEN;
     }
 
@@ -61,8 +65,8 @@ static SPIResponseCode_t SPIQueueData(uint8_t *buffer, const uint8_t buffer_len)
     SPISendQueuedData();
 
     /* Enable the TXE and RXNE interrupts */
-    SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE, ENABLE);
     SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_RXNE, ENABLE);
+    SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE, ENABLE);
   }
 
   return return_code;
@@ -83,11 +87,14 @@ void EXTI0_IRQHandler(void)
     /* Clear interrupt flag */
     EXTI_ClearITPendingBit(EXTI_Line0);
 
+    /* Start of transmission, reset chip select */
+    GPIO_ResetBits(GPIOE, GPIO_Pin_3);
+
     /* Start reading the acceleration data from SPI */
-    uint8_t bytes[MULTIBYTE_ACCEL_READ_LEN] = {OUT_X_ACCEL_L, OUT_X_ACCEL_H,
-                                               OUT_Y_ACCEL_L, OUT_Y_ACCEL_H,
-                                               OUT_Z_ACCEL_L, OUT_Z_ACCEL_H};
-    (void)SPIQueueData(&bytes[0], MULTIBYTE_ACCEL_READ_LEN);
+    uint8_t bytes[MULTIBYTE_ACCEL_READ_LEN + 1] = {OUT_X_ACCEL_L, OUT_X_ACCEL_H,
+                                                   OUT_Y_ACCEL_L, OUT_Y_ACCEL_H,
+                                                   OUT_Z_ACCEL_L, OUT_Z_ACCEL_H, 0x00};
+    (void)SPIQueueData(&bytes[0], MULTIBYTE_ACCEL_READ_LEN + 1);
   }
 
   /* Re-enable interrupts and other tasks. */
@@ -98,71 +105,50 @@ void SPI1_IRQHandler(void)
 {
   /* Disable interrupts and other tasks from running during this interrupt. */
   UBaseType_t uxSavedInterruptStatus = taskENTER_CRITICAL_FROM_ISR();
-
-  /* Handles the SPI Tx empty interrupt and the Rx not empty interrupt */
-  static uint8_t generate_one_more_more_dummy_byte = 0;
-  static uint8_t tx_data_count = 0;
-
-#if 0 // TODO: figure out why this doesn't work
-  /* Rx register is not empty (data has been received) */
-  if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_RXNE) != RESET)
-  {
-    SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_RXNE);
-    (void)UARTQueueData("RXNE\r\n\0");
-    /* Read the data and add it to the buffer */
-    spi_rx_buffer[spi_rx_buffer_tail] = (uint8_t)SPI_I2S_ReceiveData(SPI1);
-    spi_rx_buffer_tail = (spi_rx_buffer_tail + 1) % SPI_MAX_BUFFER_LEN;
-    spi_rx_buffer_size = spi_rx_buffer_head > spi_rx_buffer_tail ? UART_MAX_BUFFER_LEN - spi_rx_buffer_head + spi_rx_buffer_tail : spi_rx_buffer_tail - spi_rx_buffer_head;
-  }
-#endif
+  static uint8_t txcount = 0;
+  static uint8_t rxcount = 0;
 
   /* Tx register is empty (data needs to be sent) */
   if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_TXE) != RESET)
   {
     SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_TXE);
 
-    if (tx_data_count > 0)
-    {
-      spi_rx_buffer[spi_rx_buffer_tail] = (uint8_t)SPI_I2S_ReceiveData(SPI1);
-      spi_rx_buffer_tail = (spi_rx_buffer_tail + 1) % SPI_MAX_BUFFER_LEN;
-      spi_rx_buffer_size = spi_rx_buffer_head > spi_rx_buffer_tail ? UART_MAX_BUFFER_LEN - spi_rx_buffer_head + spi_rx_buffer_tail : spi_rx_buffer_tail - spi_rx_buffer_head;
-    }
+    txcount++;
 
     if (spi_tx_buffer_size > 0)
     {
       /* Send the next queued data */
       SPISendQueuedData();
-      generate_one_more_more_dummy_byte = 1;
-      ++tx_data_count;
-    }
-    /* Send dummy data so one more bytes worth of clock is sent for the Rx byte */
-    else if (generate_one_more_more_dummy_byte == 1)
-    {
-      generate_one_more_more_dummy_byte = 0;
-
-      /* Send a dummy byte through the SPI peripheral */
-      SPI_I2S_SendData(SPI1, 0x00);
-      ++tx_data_count;
     }
     /* There are no more bytes to send (and dummy byte is already sent) */
     else
     {
-      /* Disable TXE and RXNE interrupts */
+      /* Disable TXE interrupts */
       SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE, DISABLE);
-      SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_RXNE, DISABLE);
+    }
+  }
 
-      /* Set chip select High at the end of the transmission */
-      // GPIO_SetBits(GPIOE, GPIO_Pin_3);
+  /* Rx register is not empty (data has been received) */
+  if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_RXNE) != RESET)
+  {
+    rxcount++;
+    spi_rx_buffer[spi_rx_buffer_tail] = (uint8_t)SPI_I2S_ReceiveData(SPI1);
+    SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_RXNE);
 
-      if (MULTIBYTE_ACCEL_READ_LEN != spi_rx_buffer_size)
+    spi_rx_buffer_tail = (spi_rx_buffer_tail + 1) % SPI_MAX_BUFFER_LEN;
+    spi_rx_buffer_size = spi_rx_buffer_head > spi_rx_buffer_tail ? SPI_MAX_BUFFER_LEN - spi_rx_buffer_head + spi_rx_buffer_tail : spi_rx_buffer_tail - spi_rx_buffer_head;
+
+    /* Theoretically only 6 bytes should be read */
+    if (spi_rx_buffer_size >= MULTIBYTE_ACCEL_READ_LEN)
+    {
+      /* Transmission complete, set chip select */
+      GPIO_SetBits(GPIOE, GPIO_Pin_3);
+
+      // if (MULTIBYTE_ACCEL_READ_LEN != spi_rx_buffer_size)
       {
-        /* PANIC! AT THE DISCO */
-        char panic_str[24] = {'\0'};
-        sprintf(&panic_str[0], "RX PANIC %d %d %d\r\n", (uint8_t)spi_rx_buffer_head, (uint8_t)spi_rx_buffer_tail, (uint8_t)spi_rx_buffer_size);
-        (void)UARTQueueData(&panic_str[0]);
-
-        sprintf(&panic_str[0], "TX PANIC %d %d %d\r\n", (uint8_t)spi_tx_buffer_head, (uint8_t)spi_tx_buffer_tail, (uint8_t)spi_tx_buffer_size);
-        (void)UARTQueueData(&panic_str[0]);
+        global_spi_rx_buffer_size = spi_rx_buffer_size;
+        global_spi_rx_buffer_head = spi_rx_buffer_head;
+        global_spi_rx_buffer_tail = spi_rx_buffer_tail;
       }
 
       /* Copy the received data into an acceleration buffer */
@@ -173,12 +159,11 @@ void SPI1_IRQHandler(void)
         spi_rx_buffer_head = (spi_rx_buffer_head + 1) % SPI_MAX_BUFFER_LEN;
       }
 
-      /* Reset the tx data count */
-      tx_data_count = 0;
+      SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_RXNE, DISABLE);
     }
   }
 
-  /* Re-enable interrupts and other tasks. */
+  /* Re-enable interrupts and other tasks */
   taskEXIT_CRITICAL_FROM_ISR(uxSavedInterruptStatus);
 }
 
@@ -220,7 +205,7 @@ uint8_t self_test(void)
   {
     char init_regs[64] = {'\0'};
     sprintf(&init_regs[0], "INFO1 %02X, INFO2 %02X, WhoAmI %02X\r\n", info1, info2, who_am_i);
-    (void)UARTQueueData(&init_regs[0]);
+    (void)UARTQueueData(&init_regs[0], 0U);
   }
 
   uint8_t init_success_flag = 0;
@@ -236,7 +221,7 @@ uint8_t self_test(void)
   {
     char init_regs[64] = {'\0'};
     sprintf(&init_regs[0], "SF %02X\r\n", init_success_flag);
-    (void)UARTQueueData(&init_regs[0]);
+    (void)UARTQueueData(&init_regs[0], 0U);
   }
 
   return init_success_flag;
@@ -291,7 +276,7 @@ uint8_t InitAccelerometer(void)
   SPI1_Write(&tmpreg, CTRL_REG2, 1);
 
   /* Enable data ready interrupt (active high) on interrupt pin 1 */
-  tmpreg = 0xC4;
+  tmpreg = 0xC8;
   SPI1_Write(&tmpreg, CTRL_REG3, 1);
 
   /* 200 hz bandwidth filter */
@@ -311,7 +296,7 @@ uint8_t InitAccelerometer(void)
   {
     char init_regs[64] = {'\0'};
     sprintf(&init_regs[0], "STAT %02X, REG4 %02X, REG3 %02X, REG5 %02X, REG6 %02X, STATUS %02X\r\n", reg_read[0], reg_read[1], reg_read[2], reg_read[3], reg_read[4], reg_read[5]);
-    (void)UARTQueueData(&init_regs[0]);
+    (void)UARTQueueData(&init_regs[0], 0U);
   }
 
   /* Poor man's delay */
@@ -327,7 +312,7 @@ uint8_t InitAccelerometer(void)
   {
     char init_regs[64] = {'\0'};
     sprintf(&init_regs[0], "FIFO_CTRL %02X, FIFO SRC %02X, INFO1 %02X, INFO2 %02X, WhoAmI %02X\r\n", reg_read[0], reg_read[1], reg_read[2], reg_read[3], reg_read[4]);
-    (void)UARTQueueData(&init_regs[0]);
+    (void)UARTQueueData(&init_regs[0], 0U);
   }
 
   /* Poor man's delay */

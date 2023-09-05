@@ -14,7 +14,7 @@ static void UARTSendData(void)
   uart_tx_buffer_size = uart_tx_buffer_head > uart_tx_buffer_tail ? UART_MAX_BUFFER_LEN - uart_tx_buffer_head + uart_tx_buffer_tail : uart_tx_buffer_tail - uart_tx_buffer_head;
 }
 
-UARTResponseCode_t UARTQueueData(char *buffer)
+UARTResponseCode_t UARTQueueData(char *buffer, uint8_t from_isr)
 {
   /* Add bytes to the uart transmit queue
    *   Input MUST have a null terminating zero
@@ -35,9 +35,17 @@ UARTResponseCode_t UARTQueueData(char *buffer)
   }
   else
   {
-    /* Add the data to the queue */
-    taskENTER_CRITICAL();
+    UBaseType_t uxSavedInterruptStatus;
+    if (from_isr)
+    {
+      uxSavedInterruptStatus = taskENTER_CRITICAL_FROM_ISR();
+    }
+    else
+    {
+      taskENTER_CRITICAL();
+    }
 
+    /* Add the data to the queue */
     for (uint16_t i = 0; i < buffer_len; ++i)
     {
       uart_buffer[uart_tx_buffer_tail] = *(buffer + i);
@@ -54,7 +62,14 @@ UARTResponseCode_t UARTQueueData(char *buffer)
       USART3->CR1 |= USART_Mode_Tx;
     }
 
-    taskEXIT_CRITICAL();
+    if (from_isr)
+    {
+      taskEXIT_CRITICAL_FROM_ISR(uxSavedInterruptStatus);
+    }
+    else
+    {
+      taskEXIT_CRITICAL();
+    }
   }
 
   return return_code;

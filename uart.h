@@ -7,7 +7,7 @@
 #include "task.h"
 
 /* Max size of tx buffer in bytes */
-#define UART_MAX_BUFFER_LEN (64)
+#define UART_MAX_BUFFER_LEN (128)
 
 /* UART send data return code. */
 typedef enum
@@ -20,7 +20,7 @@ typedef enum
   UART_TX_TX_BUFFER_FULL,
 } UARTResponseCode_t;
 
-UARTResponseCode_t UARTQueueData(char *buffer);
+UARTResponseCode_t UARTQueueData(char *buffer, uint8_t from_isr);
 void USART3_IRQHandler(void);
 
 #endif
