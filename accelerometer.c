@@ -15,11 +15,11 @@ static const uint8_t spi_tx_buffer[MULTIBYTE_ACCEL_READ_LEN + 1] = {
 };
 static uint8_t tx_buffer_count = 0;
 static uint8_t rx_buffer_count = 0;
+uint32_t SPI_comms = 0;
 
 static uint8_t SPI1_SendByte(uint8_t byte);
 static void SPI1_Write(uint8_t *pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite);
 static void SPI1_Read(uint8_t *pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead);
-static void SPIQueueData(void);
 static void InterpretAccelData(accel_data *reg, acceleration_t *accel);
 
 void GetAccelerationData(acceleration_t *accel)
@@ -37,15 +37,6 @@ static void SPISendQueuedData(void)
 {
   SPI_I2S_SendData(SPI1, spi_tx_buffer[tx_buffer_count]);
   ++tx_buffer_count;
-}
-
-static void SPIQueueData(void)
-{
-  /* Start the SPI transfers */
-  SPISendQueuedData();
-
-  /* Enable the TXE interrupts */
-  SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE, ENABLE);
 }
 
 void EXTI0_IRQHandler(void)
@@ -66,8 +57,15 @@ void EXTI0_IRQHandler(void)
     /* Clear interrupt flag */
     EXTI_ClearITPendingBit(EXTI_Line0);
 
-    /* Start reading the acceleration data from SPI */
-    SPIQueueData();
+    ++SPI_comms;
+    rx_buffer_count = 0;
+    tx_buffer_count = 0;
+
+    /* Start the SPI transfers */
+    SPISendQueuedData();
+
+    /* Enable the TXE interrupts */
+    SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE, ENABLE);
   }
 
   /* Re-enable interrupts and other tasks. */
@@ -80,22 +78,24 @@ void SPI1_IRQHandler(void)
   UBaseType_t uxSavedInterruptStatus = taskENTER_CRITICAL_FROM_ISR();
 
   /* Tx register is empty (data needs to be sent) */
-  if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_TXE) != RESET && tx_buffer_count <= 1)
+  if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_TXE) != RESET && tx_buffer_count == 1)
   {
     /* Disable TXE interrupts */
     SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE, DISABLE);
     SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_TXE);
 
     /* Enable RXNE interrupts */
+    SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_RXNE);
     SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_RXNE, ENABLE);
 
     /* Send the next queued data */
     SPISendQueuedData();
   }
   /* Rx register is not empty (data has been received) */
-  else if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_RXNE) != RESET)
+  else if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_RXNE) != RESET && tx_buffer_count >= 2)
   {
     SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_RXNE);
+    SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_TXE);
     spi_rx_buffer[rx_buffer_count] = (uint8_t)SPI_I2S_ReceiveData(SPI1);
     ++rx_buffer_count;
 

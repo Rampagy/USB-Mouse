@@ -133,36 +133,6 @@ void test_FPU_test(void *p)
     GetAccelerationData(&accels);
     // ReadAcceleration(&accels);
 
-#if 0
-    /* put the state of pin 1 on usart */
-    if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_0) == Bit_SET)
-    {
-      // char pin_state[16] = {'\0'};
-      //(void)sprintf(pin_state, "PE0 1\r\n");
-      //(void)UARTQueueData(pin_state);
-    }
-    else
-    {
-      char pin_state[16] = {'\0'};
-      (void)sprintf(pin_state, "PE0 0\r\n");
-      (void)UARTQueueData(pin_state);
-    }
-
-    {
-      uint8_t stat_reg = 0;
-      char stat_print[16] = {'\0'};
-      SPI1_Read(&stat_reg, STAT_ADDR, 1);
-      (void)sprintf(stat_print, "STAT %02X\r\n", stat_reg);
-      (void)UARTQueueData(stat_print);
-    }
-    // else
-    //{
-    //   char pin_state[16] = {'\0'};
-    //   (void)sprintf(pin_state, "PE1 0\r\n");
-    //   (void)UARTQueueData(pin_state);
-    // }
-#endif
-
     /* Set LED brightness based on acceleration. */
     if (accels.x > 100.0f)
     {
@@ -202,6 +172,12 @@ void test_FPU_test(void *p)
       {
         char response_code[4] = {'f', '\r', '\n', '\0'};
         (void)UARTQueueData(response_code, 0U);
+      }
+
+      {
+        char comm_count[16] = {'\0'};
+        (void)sprintf(comm_count, "comms: %d\r\n", SPI_comms);
+        (void)UARTQueueData(comm_count, 0U);
       }
     }
     else
@@ -352,16 +328,6 @@ void init_peripherals(void)
   GPIO_SetBits(GPIOE, GPIO_Pin_3);
   SPI_Cmd(SPI1, ENABLE);
 
-#if 0
-  /* Initialize SPI interrupt pins module */
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1; /* INT2, INT1 */
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_Init(GPIOE, &GPIO_InitStructure);
-#endif
-
   /* Initialize the accelerometer in blocking/polling mode */
   if (InitAccelerometer() != 1U)
   {
@@ -401,8 +367,8 @@ void init_peripherals(void)
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0; /* INT1 */
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;
   GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
+  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
   GPIO_Init(GPIOE, &GPIO_InitStructure);
 
   /* Configure data ready interrupt line */
@@ -436,15 +402,10 @@ void init_peripherals(void)
   SYSCFG_EXTILineConfig(EXTI_PortSourceGPIOE, EXTI_PinSource0);
 
   /* If the pin is already set (missed the rising edge), generate an interrupt */
-  // if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_0) == Bit_SET)
-  //{
-  //   (void)UARTQueueData("EXTI\r\n\0");
-  //   EXTI_GenerateSWInterrupt(EXTI_PinSource0);
-  // }
-  // else
-  //{
-  //   (void)UARTQueueData("NEXTI\r\n\0");
-  // }
+  if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_0) == Bit_SET)
+  {
+    EXTI_GenerateSWInterrupt(EXTI_PinSource0);
+  }
 
   (void)UARTQueueData("SPI Interrupts enabled\r\n\0", 0U);
 #endif

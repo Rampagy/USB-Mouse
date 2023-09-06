@@ -6,9 +6,6 @@
 #include "stm32f4xx.h"
 #include "uart.h"
 
-/* SPI buffer size (Rx and Tx are the same size) */
-#define SPI_MAX_BUFFER_LEN (16)
-
 /* LIS3DSH Commands */
 #define LIS3DSH_READ_BIT (0x80)
 #define LIS3DSH_MULTI_BYTE (0x40) // read or write multiple bytes
@@ -69,5 +66,8 @@ void GetAccelerationData(acceleration_t *accel);
 
 /* Retreives acceleration data via polling/blocking */
 void ReadAcceleration(acceleration_t *accel);
+
+/* global variables */
+extern uint32_t SPI_comms;
 
 #endif // ACCELEROMETER_H
