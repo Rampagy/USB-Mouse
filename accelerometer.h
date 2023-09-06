@@ -39,21 +39,6 @@
 
 #define MULTIBYTE_ACCEL_READ_LEN (6U)
 
-extern uint16_t global_spi_rx_buffer_size;
-extern uint16_t global_spi_rx_buffer_head;
-extern uint16_t global_spi_rx_buffer_tail;
-
-/* SPI send data return code. */
-typedef enum
-{
-  SPI_TX_NO_ERROR,
-  /* Tx buffer would be full if the data was added OR
-   * tx buffer is already full. Try again later.
-   * Can also increase TX buffer size.
-   */
-  SPI_TX_BUFFER_FULL,
-} SPIResponseCode_t;
-
 typedef enum
 {
   BYPASS_MODE = 0x00,
@@ -78,7 +63,6 @@ typedef union
 uint8_t InitAccelerometer(void);
 void EXTI0_IRQHandler(void);
 void SPI1_IRQHandler(void);
-void SPI1_Read(uint8_t *pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead);
 
 /* Retreives acceleration data via interrupts */
 void GetAccelerationData(acceleration_t *accel);
