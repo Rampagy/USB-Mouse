@@ -38,6 +38,26 @@
 
 typedef enum
 {
+  start_spi, /* start */
+  t0,        /* transmit byte 0 */
+  r0,        /* receive byte 0 */
+  t1,        /* transmit byte 1 */
+  r1,        /* and so on... */
+  t2,
+  r2,
+  t3,
+  r3,
+  t4,
+  r4,
+  t5,
+  r5,
+  t6,
+  r6,
+  end_spi,
+} SpiStateMachine_t;
+
+typedef enum
+{
   BYPASS_MODE = 0x00,
   FIFO_MODE = 0x20,
   STREAM_MODE = 0x40
@@ -69,5 +89,7 @@ void ReadAcceleration(acceleration_t *accel);
 
 /* global variables */
 extern uint32_t SPI_comms;
+extern uint32_t SPI_missed;
+extern uint32_t SPI_failed;
 
 #endif // ACCELEROMETER_H

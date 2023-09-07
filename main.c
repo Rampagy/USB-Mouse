@@ -175,8 +175,9 @@ void test_FPU_test(void *p)
       }
 
       {
-        char comm_count[16] = {'\0'};
-        (void)sprintf(comm_count, "comms: %d\r\n", SPI_comms);
+        /* print SPI stats */
+        char comm_count[32] = {'\0'};
+        (void)sprintf(comm_count, "s: %lu f: %lu m: %lu\r\n", SPI_comms, SPI_failed, SPI_missed);
         (void)UARTQueueData(comm_count, 0U);
       }
     }
@@ -296,7 +297,7 @@ void init_peripherals(void)
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
   GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
   GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_DOWN;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_25MHz;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
   GPIO_Init(GPIOA, &GPIO_InitStructure);
 
   /* Connect SPI pins to AF (alternate function) */
@@ -361,7 +362,7 @@ void init_peripherals(void)
 #if 1
   /* Disable SPI until interrupts are enabled */
   SPI_Cmd(SPI1, DISABLE);
-  SPI_SSOutputCmd(SPI1, ENABLE);
+  GPIO_SetBits(GPIOE, GPIO_Pin_3);
 
   /* Initialize data ready pin (PE0) */
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0; /* INT1 */

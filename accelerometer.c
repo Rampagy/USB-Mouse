@@ -13,9 +13,12 @@ static const uint8_t spi_tx_buffer[MULTIBYTE_ACCEL_READ_LEN + 1] = {
     OUT_Z_ACCEL_H | LIS3DSH_READ_BIT,
     0x00,
 };
-static uint8_t tx_buffer_count = 0;
-static uint8_t rx_buffer_count = 0;
-uint32_t SPI_comms = 0;
+uint32_t SPI_comms = 0;  // number of successful SPI communications
+uint32_t SPI_missed = 0; // number of missed SPI communications
+uint32_t SPI_failed = 0; // number of started SPI communications that failed
+
+/* Always start at start_spi */
+static SpiStateMachine_t spi_state = start_spi;
 
 static uint8_t SPI1_SendByte(uint8_t byte);
 static void SPI1_Write(uint8_t *pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite);
@@ -33,12 +36,6 @@ void GetAccelerationData(acceleration_t *accel)
   taskEXIT_CRITICAL();
 }
 
-static void SPISendQueuedData(void)
-{
-  SPI_I2S_SendData(SPI1, spi_tx_buffer[tx_buffer_count]);
-  ++tx_buffer_count;
-}
-
 void EXTI0_IRQHandler(void)
 {
   /* Handles the data ready interrupt on PE1
@@ -51,21 +48,20 @@ void EXTI0_IRQHandler(void)
   /* If pin 0 is currently set, the data is ready to read */
   if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_0) == Bit_SET)
   {
-    /* Start of transmission, reset chip select */
-    GPIO_ResetBits(GPIOE, GPIO_Pin_3);
-
     /* Clear interrupt flag */
     EXTI_ClearITPendingBit(EXTI_Line0);
 
-    ++SPI_comms;
-    rx_buffer_count = 0;
-    tx_buffer_count = 0;
-
-    /* Start the SPI transfers */
-    SPISendQueuedData();
-
-    /* Enable the TXE interrupts */
-    SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE, ENABLE);
+    if (spi_state == start_spi)
+    {
+      /* Enable the TXE and RXNE interrupts */
+      SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE, ENABLE);
+      SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_RXNE, ENABLE);
+    }
+    else
+    {
+      /* Count missed data ready interrupts */
+      ++SPI_missed;
+    }
   }
 
   /* Re-enable interrupts and other tasks. */
@@ -77,6 +73,242 @@ void SPI1_IRQHandler(void)
   /* Disable interrupts and other tasks from running during this interrupt. */
   UBaseType_t uxSavedInterruptStatus = taskENTER_CRITICAL_FROM_ISR();
 
+  switch (spi_state)
+  {
+  case start_spi:
+    /* Start of transmission: reset chip select */
+    GPIO_ResetBits(GPIOE, GPIO_Pin_3);
+
+    /* because none of the interrupt flags were cleared as
+     * soon as we leave the interrupt it should just retrigger
+     * again with the state changed
+     */
+    spi_state = t0;
+
+  case t0:
+    if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_TXE) != RESET)
+    {
+      SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_TXE);
+
+      /* Load the first byte into the data register */
+      SPI_I2S_SendData(SPI1, spi_tx_buffer[0]);
+
+      /* Set the next active state */
+      spi_state = r0;
+    }
+    break;
+
+  case r0:
+    if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_RXNE) != RESET)
+    {
+      SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_RXNE);
+
+      /* Read the first byte from the data register
+       *   The first byte is garbage because the IC hasn't
+       *   received any valid address/command yet
+       */
+      (void)SPI_I2S_ReceiveData(SPI1);
+
+      /* Set the next active state */
+      spi_state = t1;
+    }
+    break;
+
+  case t1:
+    if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_TXE) != RESET)
+    {
+      SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_TXE);
+
+      /*  Load the next byte into the data register */
+      SPI_I2S_SendData(SPI1, spi_tx_buffer[1]);
+
+      /* Set the next active state */
+      spi_state = r1;
+    }
+    break;
+
+  case r1:
+    if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_RXNE) != RESET)
+    {
+      SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_RXNE);
+
+      /* Read the next byte from the data register */
+      spi_rx_buffer[0] = (uint8_t)SPI_I2S_ReceiveData(SPI1);
+
+      /* Set the next active state */
+      spi_state = t2;
+    }
+    break;
+
+  case t2:
+    if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_TXE) != RESET)
+    {
+      SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_TXE);
+
+      /*  Load the next byte into the data register */
+      SPI_I2S_SendData(SPI1, spi_tx_buffer[2]);
+
+      /* Set the next active state */
+      spi_state = r2;
+    }
+    break;
+
+  case r2:
+    if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_RXNE) != RESET)
+    {
+      SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_RXNE);
+
+      /* Read the next byte from the data register */
+      spi_rx_buffer[1] = (uint8_t)SPI_I2S_ReceiveData(SPI1);
+
+      /* Set the next active state */
+      spi_state = t3;
+    }
+    break;
+
+  case t3:
+    if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_TXE) != RESET)
+    {
+      SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_TXE);
+
+      /*  Load the next byte into the data register */
+      SPI_I2S_SendData(SPI1, spi_tx_buffer[3]);
+
+      /* Set the next active state */
+      spi_state = r3;
+    }
+    break;
+
+  case r3:
+    if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_RXNE) != RESET)
+    {
+      SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_RXNE);
+
+      /* Read the next byte from the data register */
+      spi_rx_buffer[2] = (uint8_t)SPI_I2S_ReceiveData(SPI1);
+
+      /* Set the next active state */
+      spi_state = t4;
+    }
+    break;
+
+  case t4:
+    if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_TXE) != RESET)
+    {
+      SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_TXE);
+
+      /*  Load the next byte into the data register */
+      SPI_I2S_SendData(SPI1, spi_tx_buffer[4]);
+
+      /* Set the next active state */
+      spi_state = r4;
+    }
+    break;
+
+  case r4:
+    if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_RXNE) != RESET)
+    {
+      SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_RXNE);
+
+      /* Read the next byte from the data register */
+      spi_rx_buffer[3] = (uint8_t)SPI_I2S_ReceiveData(SPI1);
+
+      /* Set the next active state */
+      spi_state = t5;
+    }
+    break;
+
+  case t5:
+    if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_TXE) != RESET)
+    {
+      SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_TXE);
+
+      /*  Load the next byte into the data register */
+      SPI_I2S_SendData(SPI1, spi_tx_buffer[5]);
+
+      /* Set the next active state */
+      spi_state = r5;
+    }
+    break;
+
+  case r5:
+    if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_RXNE) != RESET)
+    {
+      SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_RXNE);
+
+      /* Read the next byte from the data register */
+      spi_rx_buffer[4] = (uint8_t)SPI_I2S_ReceiveData(SPI1);
+
+      /* Set the next active state */
+      spi_state = t6;
+    }
+    break;
+
+  case t6:
+    if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_TXE) != RESET)
+    {
+      SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_TXE);
+
+      /*  Load the next byte into the data register */
+      SPI_I2S_SendData(SPI1, spi_tx_buffer[6]);
+
+      /* Set the next active state */
+      spi_state = r6;
+    }
+    break;
+
+  case r6:
+    if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_RXNE) != RESET)
+    {
+      SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_RXNE);
+
+      /* Read the next byte from the data register */
+      spi_rx_buffer[5] = (uint8_t)SPI_I2S_ReceiveData(SPI1);
+
+      /* Set the next active state */
+      spi_state = end_spi;
+    }
+    break;
+
+  case end_spi:
+    /* Disable SPI interrupts until the next data ready flag */
+    SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE, DISABLE);
+    SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_RXNE, DISABLE);
+
+    /* Count successful communications (for stats) */
+    ++SPI_comms;
+
+    /* Set the next active state */
+    spi_state = start_spi;
+
+    /* Copy the received data into an acceleration buffer */
+    for (uint16_t i = 0; i < MULTIBYTE_ACCEL_READ_LEN; ++i)
+    {
+      acceleration_data_buffer.u8[i] = spi_rx_buffer[i];
+      spi_rx_buffer[i] = 0;
+    }
+
+    /* End of transmission: set chip select high */
+    GPIO_SetBits(GPIOE, GPIO_Pin_3);
+    break;
+
+  default:
+    /* Disable SPI interrupts until the next data ready flag */
+    SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE, DISABLE);
+    SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_RXNE, DISABLE);
+
+    /* This is bad: end the transmission and wait for the next data ready */
+    ++SPI_failed;
+
+    /* Set the next active state */
+    spi_state = start_spi;
+
+    /* End of transmission: set chip select high */
+    GPIO_SetBits(GPIOE, GPIO_Pin_3);
+    break;
+  }
+
+#if 0
   /* Tx register is empty (data needs to be sent) */
   if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_TXE) != RESET && tx_buffer_count == 1)
   {
@@ -121,6 +353,7 @@ void SPI1_IRQHandler(void)
       SPISendQueuedData();
     }
   }
+#endif
 
   /* Re-enable interrupts and other tasks */
   taskEXIT_CRITICAL_FROM_ISR(uxSavedInterruptStatus);
