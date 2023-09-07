@@ -79,11 +79,12 @@ void SPI1_IRQHandler(void)
     /* Start of transmission: reset chip select */
     GPIO_ResetBits(GPIOE, GPIO_Pin_3);
 
-    /* because none of the interrupt flags were cleared as
-     * soon as we leave the interrupt it should just retrigger
-     * again with the state changed
-     */
+    /* Set the next active state */
     spi_state = t0;
+
+    /* Purposefully run into the next state
+     *   No break statement
+     */
 
   case t0:
     if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_TXE) != RESET)

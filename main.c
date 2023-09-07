@@ -128,10 +128,11 @@ void test_FPU_test(void *p)
   /* Initialize the xLastWakeTime variable with the current time. */
   xLastWakeTime = xTaskGetTickCount();
 
+  (void)UARTQueueData("\r\n\0", 0U);
+
   while (1)
   {
     GetAccelerationData(&accels);
-    // ReadAcceleration(&accels);
 
     /* Set LED brightness based on acceleration. */
     if (accels.x > 100.0f)
@@ -163,8 +164,14 @@ void test_FPU_test(void *p)
     /* Send accel data every 100ms */
     if ((uint32_t)taskCount * (uint32_t)xFrequency >= (uint32_t)5000)
     {
+      {
+        char dt_str[32] = {'\0'};
+        (void)sprintf(dt_str, "dt: %lu\r\n", (uint32_t)taskCount * (uint32_t)xFrequency);
+        (void)UARTQueueData(dt_str, 0U);
+      }
+
       char accel_str[64] = {'\0'};
-      (void)sprintf(accel_str, "x: %dmg y: %dmg z: %dmg\r\n", (int16_t)(accels.x), (int16_t)(accels.y), (int16_t)(accels.z));
+      (void)sprintf(accel_str, "  x: %dmg y: %dmg z: %dmg\r\n", (int16_t)(accels.x), (int16_t)(accels.y), (int16_t)(accels.z));
       UARTResponseCode_t response = UARTQueueData(accel_str, 0U);
       taskCount = 1;
 
@@ -177,7 +184,7 @@ void test_FPU_test(void *p)
       {
         /* print SPI stats */
         char comm_count[32] = {'\0'};
-        (void)sprintf(comm_count, "s: %lu f: %lu m: %lu\r\n", SPI_comms, SPI_failed, SPI_missed);
+        (void)sprintf(comm_count, "  s: %lu f: %lu m: %lu\r\n", SPI_comms, SPI_failed, SPI_missed);
         (void)UARTQueueData(comm_count, 0U);
       }
     }
@@ -329,6 +336,9 @@ void init_peripherals(void)
   GPIO_SetBits(GPIOE, GPIO_Pin_3);
   SPI_Cmd(SPI1, ENABLE);
 
+  /* Send a new line to specify a restart */
+  (void)UARTQueueData("\r\n\0", 0U);
+
   /* Initialize the accelerometer in blocking/polling mode */
   if (InitAccelerometer() != 1U)
   {
@@ -359,7 +369,6 @@ void init_peripherals(void)
     (void)UARTQueueData("Accelerometer Init passed\r\n\0", 0U);
   }
 
-#if 1
   /* Disable SPI until interrupts are enabled */
   SPI_Cmd(SPI1, DISABLE);
   GPIO_SetBits(GPIOE, GPIO_Pin_3);
@@ -409,5 +418,4 @@ void init_peripherals(void)
   }
 
   (void)UARTQueueData("SPI Interrupts enabled\r\n\0", 0U);
-#endif
 }
