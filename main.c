@@ -166,7 +166,7 @@ void test_FPU_test(void *p)
     {
       {
         char dt_str[32] = {'\0'};
-        (void)sprintf(dt_str, "dt: %lu\r\n", (uint32_t)taskCount * (uint32_t)xFrequency);
+        (void)sprintf(dt_str, "dt: %lums\r\n", (uint32_t)taskCount * (uint32_t)xFrequency);
         (void)UARTQueueData(dt_str, 0U);
       }
 

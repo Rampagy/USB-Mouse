@@ -415,7 +415,7 @@ uint8_t InitAccelerometer(void)
     SPI1_Read(&tmpreg, CTRL_REG3, 1);
   }
 
-  tmpreg = 0x67; // 100Hz, continuous update, x, y, z enabled
+  tmpreg = 0x77; // 400Hz, continuous update, x, y, z enabled
   SPI1_Write(&tmpreg, CTRL_REG4, 1);
 
   /* Poor man's delay */
