@@ -269,7 +269,14 @@ void SPI1_IRQHandler(void)
       /* Set the next active state */
       spi_state = end_spi;
     }
-    break;
+    /* There is a required 1 SPI clock time between when the data is read
+     * and when the chip select can go high. Depending on the SPI baudrate you
+     * choose this break may or may not be necessary to provide this clock time
+     *
+     * Note: it should be known that this break is entirely a hack that just happens
+     *   to add more than 1 clock time.
+     */
+    // break;
 
   case end_spi:
     /* Disable SPI interrupts until the next data ready flag */
@@ -308,53 +315,6 @@ void SPI1_IRQHandler(void)
     GPIO_SetBits(GPIOE, GPIO_Pin_3);
     break;
   }
-
-#if 0
-  /* Tx register is empty (data needs to be sent) */
-  if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_TXE) != RESET && tx_buffer_count == 1)
-  {
-    /* Disable TXE interrupts */
-    SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_TXE, DISABLE);
-    SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_TXE);
-
-    /* Enable RXNE interrupts */
-    SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_RXNE);
-    SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_RXNE, ENABLE);
-
-    /* Send the next queued data */
-    SPISendQueuedData();
-  }
-  /* Rx register is not empty (data has been received) */
-  else if (SPI_I2S_GetITStatus(SPI1, SPI_I2S_IT_RXNE) != RESET && tx_buffer_count >= 2)
-  {
-    SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_RXNE);
-    SPI_I2S_ClearITPendingBit(SPI1, SPI_I2S_IT_TXE);
-    spi_rx_buffer[rx_buffer_count] = (uint8_t)SPI_I2S_ReceiveData(SPI1);
-    ++rx_buffer_count;
-
-    /* Communication complete when 6 bytes are read */
-    if (rx_buffer_count >= MULTIBYTE_ACCEL_READ_LEN)
-    {
-      SPI_I2S_ITConfig(SPI1, SPI_I2S_IT_RXNE, DISABLE);
-
-      /* Copy the received data into an acceleration buffer */
-      for (uint16_t i = 0; i < MULTIBYTE_ACCEL_READ_LEN; ++i)
-      {
-        acceleration_data_buffer.u8[i] = spi_rx_buffer[i];
-        spi_rx_buffer[i] = 0;
-      }
-
-      rx_buffer_count = 0;
-      tx_buffer_count = 0;
-      GPIO_SetBits(GPIOE, GPIO_Pin_3);
-    }
-    else
-    {
-      /* Send the next queued data */
-      SPISendQueuedData();
-    }
-  }
-#endif
 
   /* Re-enable interrupts and other tasks */
   taskEXIT_CRITICAL_FROM_ISR(uxSavedInterruptStatus);

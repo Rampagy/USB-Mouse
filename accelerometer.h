@@ -36,6 +36,7 @@
 
 #define MULTIBYTE_ACCEL_READ_LEN (6U)
 
+/* state machine for the SPI interrupt */
 typedef enum
 {
   start_spi, /* start */
@@ -55,13 +56,6 @@ typedef enum
   r6,
   end_spi,
 } SpiStateMachine_t;
-
-typedef enum
-{
-  BYPASS_MODE = 0x00,
-  FIFO_MODE = 0x20,
-  STREAM_MODE = 0x40
-} AccelFIFOMode_t;
 
 typedef struct
 {

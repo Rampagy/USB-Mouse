@@ -318,8 +318,8 @@ void init_peripherals(void)
   SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;
   SPI_InitStructure.SPI_CPOL = SPI_CPOL_High;
   SPI_InitStructure.SPI_CPHA = SPI_CPHA_2Edge;
-  SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;                           /* software management of slave select (chip select) */
-  SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_32; /* 84 MHz / 16 = 5.25 MHz */
+  SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;                          /* software management of slave select (chip select) */
+  SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_8; /* 84 MHz / 8 = 10.50 MHz */
   SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
   SPI_InitStructure.SPI_CRCPolynomial = 7;
   SPI_Init(SPI1, &SPI_InitStructure);
