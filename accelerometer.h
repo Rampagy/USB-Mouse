@@ -2,9 +2,14 @@
 #define ACCELEROMETER_H
 
 #include <stdio.h>
+#include <string.h>
 
 #include "stm32f4xx.h"
 #include "uart.h"
+
+/* Butterworth Parameters */
+#define Y_COEFFS (2)
+#define X_COEFFS (3)
 
 #define ACCEL_BUFFER_SIZE (16U)
 

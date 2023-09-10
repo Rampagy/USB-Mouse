@@ -3,6 +3,13 @@
 static accel_data_t acceleration_data_buffer[ACCEL_BUFFER_SIZE] = {0U};
 static uint16_t acceleration_data_buffer_idx = 0;
 
+/* Butterworth filter coefficients */
+/* y-coefficients */
+static const float a[Y_COEFFS] = {1.94448479f, -0.94598469f};
+
+/* x-coefficients */
+static const float b[X_COEFFS] = {0.00037497f, 0.00074995f, 0.00037497f};
+
 /* SPI buffer variables */
 static uint8_t spi_rx_buffer[MULTIBYTE_ACCEL_READ_LEN] = {0};
 static const uint8_t spi_tx_buffer[MULTIBYTE_ACCEL_READ_LEN + 1] = {
@@ -37,48 +44,58 @@ void GetAccelerationData(acceleration_t *accel)
 
   taskENTER_CRITICAL();
 
-  /* copy the values to working buffers */
+  /* Copy the values to working buffers */
   accel_working_idx = acceleration_data_buffer_idx;
   acceleration_data_buffer_idx = 0;
   (void)memcpy(&acceleration_working_buffer, acceleration_data_buffer, (size_t)accel_working_idx * (size_t)sizeof(accel_data_t));
 
   taskEXIT_CRITICAL();
 
-  if (accel_working_idx > 1)
-  {
-    float x_data = 0.0f;
-    float y_data = 0.0f;
-    float z_data = 0.0f;
+  static acceleration_t y_prev[Y_COEFFS] = {{0.0f, 0.0f, 0.0f}};
+  static acceleration_t x_prev[X_COEFFS] = {{0.0f, 0.0f, 0.0f}};
 
-    /* Take the average of the samples */
-    for (uint16_t i = 0; i < accel_working_idx; ++i)
+  for (uint16_t i = 0; i < accel_working_idx; ++i)
+  {
+    float x_filt = 0.0f;
+    float y_filt = 0.0f;
+    float z_filt = 0.0f;
+
+    acceleration_t x;
+    InterpretAccelData(&acceleration_working_buffer[i], &x);
+
+    /* Shift the x samples back one to make room for the new sample */
+    for (uint8_t j = X_COEFFS - 1; j > 0; --j)
     {
-      acceleration_t temp_buf;
-      InterpretAccelData(&acceleration_working_buffer[i], &temp_buf);
-      x_data += temp_buf.x;
-      y_data += temp_buf.y;
-      z_data += temp_buf.z;
+      x_prev[j] = x_prev[j - 1];
+    }
+    x_prev[0] = x;
+
+    /* Apply the butterworth filter */
+    for (uint8_t j = 0; j < X_COEFFS; ++j)
+    {
+      x_filt += (b[j] * x_prev[j].x);
+      y_filt += (b[j] * x_prev[j].y);
+      z_filt += (b[j] * x_prev[j].z);
     }
 
-    x_data /= (float)accel_working_idx;
-    y_data /= (float)accel_working_idx;
-    z_data /= (float)accel_working_idx;
+    for (uint8_t j = 0; j < Y_COEFFS; ++j)
+    {
+      x_filt += (a[j] * y_prev[j].x);
+      y_filt += (a[j] * y_prev[j].y);
+      z_filt += (a[j] * y_prev[j].z);
+    }
 
-    (*accel).x = x_data;
-    (*accel).y = y_data;
-    (*accel).z = z_data;
+    /* Shift the y samples back one to make room for the new sample */
+    for (uint8_t j = Y_COEFFS - 1; j > 0; --j)
+    {
+      y_prev[j] = y_prev[j - 1];
+    }
+    y_prev[0].x = x_filt;
+    y_prev[0].y = y_filt;
+    y_prev[0].z = z_filt;
   }
-  else if (accel_working_idx == 1)
-  {
-    /* only one data point, return the only value */
-    InterpretAccelData(&acceleration_working_buffer[accel_working_idx - 1], accel);
-  }
-  else
-  {
-    /* no data, return zero */
-    accel_data_t temp = {0};
-    InterpretAccelData(&temp, accel);
-  }
+
+  (*accel) = y_prev[0];
 }
 
 void EXTI0_IRQHandler(void)
@@ -469,7 +486,7 @@ uint8_t InitAccelerometer(void)
     SPI1_Read(&tmpreg, CTRL_REG3, 1);
   }
 
-  tmpreg = 0x97; // 400Hz, continuous update, x, y, z enabled
+  tmpreg = 0x97; // 1600Hz, continuous update, x, y, z enabled
   SPI1_Write(&tmpreg, CTRL_REG4, 1);
 
   /* Poor man's delay */
