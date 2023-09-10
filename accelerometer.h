@@ -6,6 +6,8 @@
 #include "stm32f4xx.h"
 #include "uart.h"
 
+#define ACCEL_BUFFER_SIZE (16U)
+
 /* LIS3DSH Commands */
 #define LIS3DSH_READ_BIT (0x80)
 #define LIS3DSH_MULTI_BYTE (0x40) // read or write multiple bytes
@@ -69,7 +71,7 @@ typedef union
   uint8_t u8[MULTIBYTE_ACCEL_READ_LEN];
   int8_t s8[MULTIBYTE_ACCEL_READ_LEN];
   char c8[MULTIBYTE_ACCEL_READ_LEN];
-} accel_data;
+} accel_data_t;
 
 uint8_t InitAccelerometer(void);
 void EXTI0_IRQHandler(void);

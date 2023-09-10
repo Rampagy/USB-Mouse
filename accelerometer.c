@@ -1,6 +1,7 @@
 #include "accelerometer.h"
 
-static accel_data acceleration_data_buffer = {0U};
+static accel_data_t acceleration_data_buffer[ACCEL_BUFFER_SIZE] = {0U};
+static uint16_t acceleration_data_buffer_idx = 0;
 
 /* SPI buffer variables */
 static uint8_t spi_rx_buffer[MULTIBYTE_ACCEL_READ_LEN] = {0};
@@ -23,7 +24,7 @@ static SpiStateMachine_t spi_state = start_spi;
 static uint8_t SPI1_SendByte(uint8_t byte);
 static void SPI1_Write(uint8_t *pBuffer, uint8_t WriteAddr, uint16_t NumByteToWrite);
 static void SPI1_Read(uint8_t *pBuffer, uint8_t ReadAddr, uint16_t NumByteToRead);
-static void InterpretAccelData(accel_data *reg, acceleration_t *accel);
+static void InterpretAccelData(accel_data_t *reg, acceleration_t *accel);
 
 void GetAccelerationData(acceleration_t *accel)
 {
@@ -31,9 +32,53 @@ void GetAccelerationData(acceleration_t *accel)
    *   with units of milli-g
    *   -1000mg is equivalent to -9.81 m/s/s
    */
+  accel_data_t acceleration_working_buffer[ACCEL_BUFFER_SIZE];
+  uint16_t accel_working_idx = 0;
+
   taskENTER_CRITICAL();
-  InterpretAccelData(&acceleration_data_buffer, accel);
+
+  /* copy the values to working buffers */
+  accel_working_idx = acceleration_data_buffer_idx;
+  acceleration_data_buffer_idx = 0;
+  (void)memcpy(&acceleration_working_buffer, acceleration_data_buffer, (size_t)accel_working_idx * (size_t)sizeof(accel_data_t));
+
   taskEXIT_CRITICAL();
+
+  if (accel_working_idx > 1)
+  {
+    float x_data = 0.0f;
+    float y_data = 0.0f;
+    float z_data = 0.0f;
+
+    /* Take the average of the samples */
+    for (uint16_t i = 0; i < accel_working_idx; ++i)
+    {
+      acceleration_t temp_buf;
+      InterpretAccelData(&acceleration_working_buffer[i], &temp_buf);
+      x_data += temp_buf.x;
+      y_data += temp_buf.y;
+      z_data += temp_buf.z;
+    }
+
+    x_data /= (float)accel_working_idx;
+    y_data /= (float)accel_working_idx;
+    z_data /= (float)accel_working_idx;
+
+    (*accel).x = x_data;
+    (*accel).y = y_data;
+    (*accel).z = z_data;
+  }
+  else if (accel_working_idx == 1)
+  {
+    /* only one data point, return the only value */
+    InterpretAccelData(&acceleration_working_buffer[accel_working_idx - 1], accel);
+  }
+  else
+  {
+    /* no data, return zero */
+    accel_data_t temp = {0};
+    InterpretAccelData(&temp, accel);
+  }
 }
 
 void EXTI0_IRQHandler(void)
@@ -270,11 +315,11 @@ void SPI1_IRQHandler(void)
       spi_state = end_spi;
     }
     /* There is a required 1 SPI clock time between when the data is read
-     * and when the chip select can go high. Depending on the SPI baudrate you
-     * choose this break may or may not be necessary to provide this clock time
+     * and when the chip select can go high. Depending on the SPI baudrate
+     * this break may or may not be necessary to provide this clock time
      *
      * Note: it should be known that this break is entirely a hack that just happens
-     *   to add more than 1 clock time.
+     *   to add more than 1 SPI clock time.
      */
     // break;
 
@@ -292,8 +337,17 @@ void SPI1_IRQHandler(void)
     /* Copy the received data into an acceleration buffer */
     for (uint16_t i = 0; i < MULTIBYTE_ACCEL_READ_LEN; ++i)
     {
-      acceleration_data_buffer.u8[i] = spi_rx_buffer[i];
+      if (acceleration_data_buffer_idx < ACCEL_BUFFER_SIZE)
+      {
+        acceleration_data_buffer[acceleration_data_buffer_idx].u8[i] = spi_rx_buffer[i];
+      }
       spi_rx_buffer[i] = 0;
+    }
+
+    if (acceleration_data_buffer_idx < ACCEL_BUFFER_SIZE)
+    {
+      /* Increment the buffer */
+      ++acceleration_data_buffer_idx;
     }
 
     /* End of transmission: set chip select high */
@@ -320,7 +374,7 @@ void SPI1_IRQHandler(void)
   taskEXIT_CRITICAL_FROM_ISR(uxSavedInterruptStatus);
 }
 
-void InterpretAccelData(accel_data *reg, acceleration_t *accel)
+void InterpretAccelData(accel_data_t *reg, acceleration_t *accel)
 {
   /* Takes reg 6 bytes in from reg and returns them as floats
    *   in accel
@@ -335,7 +389,7 @@ void InterpretAccelData(accel_data *reg, acceleration_t *accel)
 
 void ReadAcceleration(acceleration_t *accel)
 {
-  accel_data reg;
+  accel_data_t reg;
 
   /* Read 6 bytes: x acceleration, y acceleration, and z acceleration. */
   SPI1_Read(&reg.u8[0], OUT_X_ACCEL_L, 6);
@@ -415,7 +469,7 @@ uint8_t InitAccelerometer(void)
     SPI1_Read(&tmpreg, CTRL_REG3, 1);
   }
 
-  tmpreg = 0x77; // 400Hz, continuous update, x, y, z enabled
+  tmpreg = 0x97; // 400Hz, continuous update, x, y, z enabled
   SPI1_Write(&tmpreg, CTRL_REG4, 1);
 
   /* Poor man's delay */

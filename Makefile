@@ -34,6 +34,7 @@ INCLUDE+=-I$(FREERTOS)/portable/GCC/ARM_CM4F
 INCLUDE+=-I$(CURDIR)/Libraries/CMSIS/Device/ST/STM32F4xx/Include
 INCLUDE+=-I$(CURDIR)/Libraries/CMSIS/Core/Include
 INCLUDE+=-I$(CMSIS_DSP)/Include
+INCLUDE+=-I$(CMSIS_DSP)/Include/dsp
 INCLUDE+=-I$(CMSIS_DSP)/PrivateInclude
 INCLUDE+=-I$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/inc
 INCLUDE+=-I$(CURDIR)/config

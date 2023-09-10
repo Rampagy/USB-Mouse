@@ -7,14 +7,13 @@
 // Macro to use CCM (Core Coupled Memory) in STM32F4
 #define CCM_RAM __attribute__((section(".ccmram")))
 
-#define FPU_TASK_STACK_SIZE (configMINIMAL_STACK_SIZE * 10)
+#define ACCEL_TASK_STACK_SIZE (configMINIMAL_STACK_SIZE * 10)
 
-StackType_t fpuTaskStack[FPU_TASK_STACK_SIZE] CCM_RAM; // Put task stack in CCM
-StaticTask_t fpuTaskBuffer CCM_RAM;                    // Put TCB in CCM
+StackType_t fpuTaskStack[ACCEL_TASK_STACK_SIZE] CCM_RAM; // Put task stack in CCM
+StaticTask_t fpuTaskBuffer CCM_RAM;                      // Put TCB in CCM
 
 void init_peripherals(void);
-
-void test_FPU_test(void *p);
+void AccelerometerTask(void *p);
 
 int main(void)
 {
@@ -27,9 +26,8 @@ int main(void)
   // Stack and TCB are placed in CCM of STM32F4
   // The CCM block is connected directly to the core, which leads to zero wait states
   /* Spawn the tasks. */
-  /*           Task,                  Task Name,          Stack Size,                             parameters,     priority,                           task handle */
-  xTaskCreateStatic(test_FPU_test, "FPU", FPU_TASK_STACK_SIZE, NULL, 1, fpuTaskStack, &fpuTaskBuffer);
-  //  xTaskCreate(test_FPU_test,          "FPU",              FPU_TASK_STACK_SIZE,                    NULL,           1,                                  &xFPU);
+  /*                             Task,   Task Name,            Stack Size, parameters, priority, task stack  */
+  xTaskCreateStatic(AccelerometerTask, "AccelTask", ACCEL_TASK_STACK_SIZE, NULL, 1, fpuTaskStack, &fpuTaskBuffer);
 
   vTaskStartScheduler(); // should never return
 
@@ -117,7 +115,7 @@ void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuffer, StackT
   *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
 }
 
-void test_FPU_test(void *p)
+void AccelerometerTask(void *p)
 {
   (void)p;
   TickType_t xLastWakeTime;
@@ -161,7 +159,7 @@ void test_FPU_test(void *p)
       TIM_SetCompare2(TIM4, (uint32_t)((-accels.y - 100.0f) * 10.5f));
     }
 
-    /* Send accel data every 100ms */
+    /* Send accel data every 5s */
     if ((uint32_t)taskCount * (uint32_t)xFrequency >= (uint32_t)5000)
     {
       {
@@ -279,7 +277,7 @@ void init_peripherals(void)
   GPIO_PinAFConfig(GPIOD, GPIO_PinSource9, GPIO_AF_USART3);
 
   /* Initialize UART peripheral */
-  USART_InitStructure.USART_BaudRate = 115200;
+  USART_InitStructure.USART_BaudRate = 230400;
   USART_InitStructure.USART_WordLength = USART_WordLength_8b;
   USART_InitStructure.USART_StopBits = USART_StopBits_1;
   USART_InitStructure.USART_Parity = USART_Parity_No;
