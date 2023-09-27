@@ -3,6 +3,7 @@
 #include "task.h"
 #include "accelerometer.h"
 #include "uart.h"
+#include "fast_math_functions.h"
 
 // Macro to use CCM (Core Coupled Memory) in STM32F4
 #define CCM_RAM __attribute__((section(".ccmram")))
@@ -159,37 +160,42 @@ void AccelerometerTask(void *p)
       TIM_SetCompare2(TIM4, (uint32_t)((-accels.y - 100.0f) * 10.5f));
     }
 
-    /* Send accel data every 5s */
-    if ((uint32_t)taskCount * (uint32_t)xFrequency >= (uint32_t)5000)
-    {
-      {
-        char dt_str[32] = {'\0'};
-        (void)sprintf(dt_str, "dt: %lums\r\n", (uint32_t)taskCount * (uint32_t)xFrequency);
-        (void)UARTQueueData(dt_str, 0U);
-      }
+    /* https://www.digikey.com/en/articles/using-an-accelerometer-for-inclination-sensing */
+    float pitch = 0.0f;
+    float roll = 0.0f;
+    float yaw = 0.0f;
 
+    {
+      float intermediate = 0.0f;
+      (void)arm_sqrt_f32(accels.y * accels.y + accels.z * accels.z, &intermediate);
+      (void)arm_atan2_f32(-accels.x, intermediate, &roll);
+
+      intermediate = 0.0f;
+      (void)arm_sqrt_f32(accels.x * accels.x + accels.z * accels.z, &intermediate);
+      (void)arm_atan2_f32(-accels.y, intermediate, &pitch);
+
+      intermediate = 0.0f;
+      (void)arm_sqrt_f32(accels.x * accels.x + accels.y * accels.y, &intermediate);
+      (void)arm_atan2_f32(intermediate, accels.z, &yaw);
+    }
+
+    /* Send accel data every 50 ms */
+    if ((uint32_t)taskCount * (uint32_t)xFrequency >= (uint32_t)50)
+    {
       char accel_str[64] = {'\0'};
-      (void)sprintf(accel_str, "  x: %dmg y: %dmg z: %dmg\r\n", (int16_t)(accels.x), (int16_t)(accels.y), (int16_t)(accels.z));
+      (void)sprintf(accel_str, "%d,%d,%d,%d,%d,%d\r\n", (int16_t)accels.x, (int16_t)accels.y, (int16_t)accels.z,
+                    (int16_t)(pitch * 180.0f / 3.14159f), (int16_t)(roll * 180.0f / 3.14159f), (int16_t)(yaw * 180.0f / 3.14159f));
       UARTResponseCode_t response = UARTQueueData(accel_str, 0U);
-      taskCount = 1;
+      taskCount = 0;
 
       if (response != UART_TX_NO_ERROR)
       {
         char response_code[4] = {'f', '\r', '\n', '\0'};
         (void)UARTQueueData(response_code, 0U);
       }
+    }
 
-      {
-        /* print SPI stats */
-        char comm_count[32] = {'\0'};
-        (void)sprintf(comm_count, "  s: %lu f: %lu m: %lu\r\n", SPI_comms, SPI_failed, SPI_missed);
-        (void)UARTQueueData(comm_count, 0U);
-      }
-    }
-    else
-    {
-      ++taskCount;
-    }
+    ++taskCount;
 
     /* Wait for the next cycle. */
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
