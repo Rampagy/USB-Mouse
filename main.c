@@ -167,12 +167,12 @@ void AccelerometerTask(void *p)
 
     {
       float intermediate = 0.0f;
-      (void)arm_sqrt_f32(accels.y * accels.y + accels.z * accels.z, &intermediate);
-      (void)arm_atan2_f32(-accels.x, intermediate, &roll);
+      (void)arm_sqrt_f32(accels.x * accels.x + accels.z * accels.z, &intermediate);
+      (void)arm_atan2_f32(accels.y, intermediate, &pitch);
 
       intermediate = 0.0f;
-      (void)arm_sqrt_f32(accels.x * accels.x + accels.z * accels.z, &intermediate);
-      (void)arm_atan2_f32(-accels.y, intermediate, &pitch);
+      (void)arm_sqrt_f32(accels.y * accels.y + accels.z * accels.z, &intermediate);
+      (void)arm_atan2_f32(accels.x, intermediate, &roll);
 
       intermediate = 0.0f;
       (void)arm_sqrt_f32(accels.x * accels.x + accels.y * accels.y, &intermediate);
