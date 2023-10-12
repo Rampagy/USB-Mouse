@@ -4,6 +4,8 @@ test_main.exe
 
 # Object files
 *.o
+build/*.c
+build/*.s
 
 # Libraries
 *.lib

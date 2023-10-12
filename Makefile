@@ -20,6 +20,12 @@ DBG:=-g
 
 MAKEFLAGS += --jobs=$(CPUS)
 
+# import macros common to all supported build systems
+include $(CURDIR)/make/system-id.mk
+
+# import macros that are OS specific
+include $(CURDIR)/make/$(OSFAMILY).mk
+
 FREERTOS:=$(CURDIR)/FreeRTOS
 STARTUP:=$(CURDIR)/hardware
 LINKER_SCRIPT:=$(CURDIR)/Utilities/stm32_flash.ld
@@ -28,7 +34,7 @@ LINKER_SCRIPT:=$(CURDIR)/Utilities/stm32_flash.ld
 CMSIS_DSP:=$(CURDIR)/Libraries/CMSIS/DSP
 
 INCLUDE=-I$(CURDIR)
-INCLUDE=-I$(CURDIR)/hardware
+INCLUDE+=-I$(CURDIR)/hardware
 INCLUDE+=-I$(FREERTOS)/include
 INCLUDE+=-I$(FREERTOS)/portable/GCC/ARM_CM4F
 INCLUDE+=-I$(CURDIR)/Libraries/CMSIS/Device/ST/STM32F4xx/Include
@@ -42,110 +48,88 @@ INCLUDE+=-I$(CURDIR)/config
 BUILD_DIR = $(CURDIR)/build
 BIN_DIR = $(CURDIR)/binary
 
-# vpath is used so object files are written to the current directory instead
-# of the same directory as their source files
-vpath %.c $(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src \
-          $(CURDIR)/Libraries/syscall $(CURDIR)/hardware $(FREERTOS) \
-          $(FREERTOS)/portable/MemMang $(FREERTOS)/portable/GCC/ARM_CM4F \
-          $(CMSIS_DSP)/Source/BasicMathFunctions \
-          $(CMSIS_DSP)/Source/CommonTables \
-          $(CMSIS_DSP)/Source/InterpolationFunctions \
-          $(CMSIS_DSP)/Source/BayesFunctions \
-          $(CMSIS_DSP)/Source/MatrixFunctions \
-          $(CMSIS_DSP)/Source/ComplexMathFunctions \
-          $(CMSIS_DSP)/Source/QuaternionMathFunctions \
-          $(CMSIS_DSP)/Source/ControllerFunctions \
-          $(CMSIS_DSP)/Source/SVMFunctions \
-          $(CMSIS_DSP)/Source/DistanceFunctions \
-          $(CMSIS_DSP)/Source/StatisticsFunctions \
-          $(CMSIS_DSP)/Source/FastMathFunctions \
-          $(CMSIS_DSP)/Source/SupportFunctions \
-          $(CMSIS_DSP)/Source/FilteringFunctions \
-          $(CMSIS_DSP)/Source/TransformFunctions \
-
-vpath %.s $(STARTUP)
-ASRC=startup_stm32f4xx.s
+ASRC=$(CURDIR)/hardware/startup_stm32f4xx.s
 
 # Application Files
-SRC+=accelerometer.c
-SRC+=uart.c
+SRC+=$(CURDIR)/accelerometer.c
+SRC+=$(CURDIR)/uart.c
 
 # Project Source Files
-SRC+=stm32f4xx_it.c
-SRC+=system_stm32f4xx.c
-SRC+=main.c
-SRC+=syscalls.c
+SRC+=$(CURDIR)/hardware/stm32f4xx_it.c
+SRC+=$(CURDIR)/hardware/system_stm32f4xx.c
+SRC+=$(CURDIR)/main.c
+SRC+=$(CURDIR)/Libraries/syscall/syscalls.c
 
 # FreeRTOS Source Files
-SRC+=port.c
-SRC+=list.c
-SRC+=queue.c
-SRC+=tasks.c
-SRC+=event_groups.c
-SRC+=timers.c
-SRC+=heap_4.c
+SRC+=$(FREERTOS)/portable/GCC/ARM_CM4F/port.c
+SRC+=$(FREERTOS)/list.c
+SRC+=$(FREERTOS)/queue.c
+SRC+=$(FREERTOS)/tasks.c
+SRC+=$(FREERTOS)/event_groups.c
+SRC+=$(FREERTOS)/timers.c
+SRC+=$(FREERTOS)/portable/MemMang/heap_4.c
 
 # DSP Source Files
-SRC+=BasicMathFunctions.c
-SRC+=CommonTables.c
-SRC+=InterpolationFunctions.c
-SRC+=BayesFunctions.c
-SRC+=MatrixFunctions.c
-SRC+=ComplexMathFunctions.c
-SRC+=QuaternionMathFunctions.c
-SRC+=ControllerFunctions.c
-SRC+=SVMFunctions.c
-SRC+=DistanceFunctions.c
-SRC+=StatisticsFunctions.c
-SRC+=FastMathFunctions.c
-SRC+=SupportFunctions.c
-SRC+=FilteringFunctions.c
-SRC+=TransformFunctions.c
+SRC+=$(CMSIS_DSP)/Source/BasicMathFunctions/BasicMathFunctions.c
+SRC+=$(CMSIS_DSP)/Source/CommonTables/CommonTables.c
+SRC+=$(CMSIS_DSP)/Source/InterpolationFunctions/InterpolationFunctions.c
+SRC+=$(CMSIS_DSP)/Source/BayesFunctions/BayesFunctions.c
+SRC+=$(CMSIS_DSP)/Source/MatrixFunctions/MatrixFunctions.c
+SRC+=$(CMSIS_DSP)/Source/ComplexMathFunctions/ComplexMathFunctions.c
+SRC+=$(CMSIS_DSP)/Source/QuaternionMathFunctions/QuaternionMathFunctions.c
+SRC+=$(CMSIS_DSP)/Source/ControllerFunctions/ControllerFunctions.c
+SRC+=$(CMSIS_DSP)/Source/SVMFunctions/SVMFunctions.c
+SRC+=$(CMSIS_DSP)/Source/DistanceFunctions/DistanceFunctions.c
+SRC+=$(CMSIS_DSP)/Source/StatisticsFunctions/StatisticsFunctions.c
+SRC+=$(CMSIS_DSP)/Source/FastMathFunctions/FastMathFunctions.c
+SRC+=$(CMSIS_DSP)/Source/SupportFunctions/SupportFunctions.c
+SRC+=$(CMSIS_DSP)/Source/FilteringFunctions/FilteringFunctions.c
+SRC+=$(CMSIS_DSP)/Source/TransformFunctions/TransformFunctions.c
 
 # Standard Peripheral Source Files
-SRC+=misc.c
-SRC+=stm32f4xx_dcmi.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/misc.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dcmi.c
 #SRC+=stm32f4xx_hash.c
-SRC+=stm32f4xx_rtc.c
-SRC+=stm32f4xx_adc.c
-SRC+=stm32f4xx_dma.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_rtc.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_adc.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dma.c
 #SRC+=stm32f4xx_hash_md5.c
-SRC+=stm32f4xx_sai.c
-SRC+=stm32f4xx_can.c
-SRC+=stm32f4xx_dma2d.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_sai.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_can.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dma2d.c
 #SRC+=stm32f4xx_hash_sha1.c
-SRC+=stm32f4xx_sdio.c
-SRC+=stm32f4xx_cec.c
-SRC+=stm32f4xx_dsi.c
-SRC+=stm32f4xx_i2c.c
-SRC+=stm32f4xx_spdifrx.c
-SRC+=stm32f4xx_crc.c
-SRC+=stm32f4xx_exti.c
-SRC+=stm32f4xx_iwdg.c
-SRC+=stm32f4xx_spi.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_sdio.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_cec.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dsi.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_i2c.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_spdifrx.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_crc.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_exti.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_iwdg.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_spi.c
 #SRC+=stm32f4xx_cryp.c
-SRC+=stm32f4xx_flash.c
-SRC+=stm32f4xx_lptim.c
-SRC+=stm32f4xx_syscfg.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_flash.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_lptim.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_syscfg.c
 #SRC+=stm32f4xx_cryp_aes.c
-SRC+=stm32f4xx_flash_ramfunc.c
-SRC+=stm32f4xx_ltdc.c
-SRC+=stm32f4xx_tim.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_flash_ramfunc.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_ltdc.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_tim.c
 #SRC+=stm32f4xx_cryp_des.c
 #SRC+=stm32f4xx_fmc.c
-SRC+=stm32f4xx_pwr.c
-SRC+=stm32f4xx_usart.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_pwr.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_usart.c
 #SRC+=stm32f4xx_cryp_tdes.c
-SRC+=stm32f4xx_fmpi2c.c
-SRC+=stm32f4xx_qspi.c
-SRC+=stm32f4xx_wwdg.c
-SRC+=stm32f4xx_dac.c
-SRC+=stm32f4xx_fsmc.c
-SRC+=stm32f4xx_rcc.c
-SRC+=stm32f4xx_dbgmcu.c
-SRC+=stm32f4xx_gpio.c
-SRC+=stm32f4xx_rng.c
-SRC+=stm32f4xx_dfsdm.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_fmpi2c.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_qspi.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_wwdg.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dac.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_fsmc.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_rcc.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dbgmcu.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_gpio.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_rng.c
+SRC+=$(CURDIR)/Libraries/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dfsdm.c
 
 CDEFS=-DUSE_STDPERIPH_DRIVER
 CDEFS+=-DSTM32F4XX
@@ -168,9 +152,13 @@ AS=$(TOOLCHAIN_PATH)/$(TOOLCHAIN_PREFIX)-as
 AR=$(TOOLCHAIN_PATH)/$(TOOLCHAIN_PREFIX)-ar
 GDB=$(TOOLCHAIN_PATH)/$(TOOLCHAIN_PREFIX)-gdb
 
-OBJ = $(SRC:%.c=$(BUILD_DIR)/%.o)
+OBJ = $(patsubst %.c, $(BUILD_DIR)/%.o, $(notdir $(SRC)))
 
-$(BUILD_DIR)/%.o: %.c
+.PHONY c_deps:
+%.c:
+	$(copy_src_files)
+
+%.o: $(copy_src_files) %.c
 	@echo [CC] $(notdir $<)
 	@$(CC) $(CFLAGS) $< -c -o $@
 
