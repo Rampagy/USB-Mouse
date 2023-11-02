@@ -231,6 +231,12 @@ void init_peripherals(void)
   /* Enable the TIM4, and USART3 clock */
   RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4 | RCC_APB1Periph_USART3, ENABLE); // 42 MHz? or 84 MHz?
 
+  /* Enable the USB clock */
+  RCC_AHB2PeriphClockCmd(RCC_AHB2Periph_OTG_FS, ENABLE); // 168 MHz? 84 MHz? 42 MHz?
+
+  /* Enable the PWR clock */
+  RCC_APB1PeriphResetCmd(RCC_APB1Periph_PWR, ENABLE);
+
   /* Configure the LED pins */
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15; /* GREEN, ORANGE, RED, BLUE */
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
@@ -422,4 +428,28 @@ void init_peripherals(void)
   }
 
   (void)UARTQueueData("SPI Interrupts enabled\r\n\0", 0U);
+
+  /* Initialize USB pins: SOF VBUS DM DP */
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8 | GPIO_Pin_9 | GPIO_Pin_11 | GPIO_Pin_12;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+  GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+  /* Connect pins USB full speed */
+  GPIO_PinAFConfig(GPIOA, GPIO_PinSource8, GPIO_AF_OTG1_FS);
+  GPIO_PinAFConfig(GPIOA, GPIO_PinSource9, GPIO_AF_OTG1_FS);
+  GPIO_PinAFConfig(GPIOA, GPIO_PinSource11, GPIO_AF_OTG1_FS);
+  GPIO_PinAFConfig(GPIOA, GPIO_PinSource12, GPIO_AF_OTG1_FS);
+
+  /* Configure ID line debug */
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
+  GPIO_InitStructure.GPIO_OType = GPIO_OType_OD;
+  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
+  GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+  /* Connect pins to USB full speed */
+  GPIO_PinAFConfig(GPIOA, GPIO_PinSource10, GPIO_AF_OTG1_FS);
 }
